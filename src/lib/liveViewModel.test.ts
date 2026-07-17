@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   nodeStatus,
   logLines,
+  traceLines,
   agentDetail,
   treeNodeStatus,
   findTreeNode,
@@ -127,6 +128,52 @@ describe("logLines", () => {
       { agent: "news", text: "▸ news started" },
       { agent: "engagement", text: "▸ engagement started" },
       { agent: "orchestrator", text: "  ✗ error: missing ANTHROPIC_API_KEY" },
+    ]);
+  });
+});
+
+describe("traceLines", () => {
+  it("maps a full run sequence to kinds and carries an error stack", () => {
+    const events: LiveEvent[] = [
+      { agent: "orchestrator", type: "run_started", payload: { contactId: "c1" } },
+      { agent: "orchestrator", type: "plan_ready", payload: { agents: ["company", "contact"] } },
+      { agent: "company", type: "agent_started", payload: {} },
+      { agent: "company", type: "agent_tool_call", payload: { name: "pdl_company_enrich" } },
+      { agent: "company", type: "agent_tool_result", payload: { id: "toolu_1" } },
+      { agent: "company", type: "agent_completed", payload: { industry: "SaaS" } },
+      { agent: "scorer", type: "scoring_started", payload: {} },
+      { agent: "scorer", type: "score_ready", payload: { priority: 80, grade: "A" } },
+      { agent: "orchestrator", type: "agent_error", payload: { message: "boom", stack: "Error: boom\n  at x (y.ts:1:1)" } },
+    ];
+    expect(traceLines(events)).toEqual([
+      { kind: "info", text: "run started" },
+      { kind: "info", text: "plan: company, contact" },
+      { kind: "info", text: "company started" },
+      { kind: "tool", text: "company -> pdl_company_enrich" },
+      { kind: "tool", text: "company <- result" },
+      { kind: "done", text: "company done" },
+      { kind: "info", text: "scoring..." },
+      { kind: "done", text: "scored: priority 80 grade A" },
+      { kind: "error", text: "boom", stack: "Error: boom\n  at x (y.ts:1:1)" },
+    ]);
+    // The error line specifically carries the raw stack for the trace tab.
+    const err = traceLines(events).find((l) => l.kind === "error");
+    expect(err?.stack).toBe("Error: boom\n  at x (y.ts:1:1)");
+  });
+
+  it("renders run_completed and omits stack when the error has none (no-key sequence)", () => {
+    expect(traceLines(NO_KEY_SEQUENCE)).toEqual([
+      { kind: "info", text: "run started" },
+      { kind: "info", text: "plan: company, contact, tech, news, engagement" },
+      { kind: "info", text: "company started" },
+      { kind: "info", text: "contact started" },
+      { kind: "info", text: "tech started" },
+      { kind: "info", text: "news started" },
+      { kind: "info", text: "engagement started" },
+      { kind: "error", text: "missing ANTHROPIC_API_KEY" },
+    ]);
+    expect(traceLines([{ agent: "orchestrator", type: "run_completed", payload: {} }])).toEqual([
+      { kind: "done", text: "run completed" },
     ]);
   });
 });

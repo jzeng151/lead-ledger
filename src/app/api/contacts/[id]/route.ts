@@ -20,6 +20,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // run's startedAt and keep the newest, matching the list route's "latest" rule.
   const scoreRows = db
     .select({
+      runId: scores.runId,
       fit: scores.fit,
       engagement: scores.engagement,
       priority: scores.priority,
@@ -36,16 +37,32 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .where(eq(scores.contactId, id))
     .all();
 
-  let score: Omit<(typeof scoreRows)[number], "startedAt"> | null = null;
+  let score: Omit<(typeof scoreRows)[number], "startedAt" | "runId"> | null = null;
+  // The latest run for this contact: the run behind the latest scored row, else
+  // the newest run row (a run that errored before scoring still counts), else null.
+  let latestRunId: string | null = null;
   let latestStartedAt = -Infinity;
   for (const s of scoreRows) {
     const t = s.startedAt ? s.startedAt.getTime() : 0;
     if (t >= latestStartedAt) {
       latestStartedAt = t;
-      const { startedAt: _startedAt, ...rest } = s;
+      const { startedAt: _startedAt, runId: _runId, ...rest } = s;
       score = rest;
+      latestRunId = s.runId;
     }
   }
 
-  return Response.json({ contact, score });
+  if (!latestRunId) {
+    const runRows = db.select({ id: runs.id, startedAt: runs.startedAt }).from(runs).where(eq(runs.contactId, id)).all();
+    let newest = -Infinity;
+    for (const r of runRows) {
+      const t = r.startedAt ? r.startedAt.getTime() : 0;
+      if (t >= newest) {
+        newest = t;
+        latestRunId = r.id;
+      }
+    }
+  }
+
+  return Response.json({ contact, score, latestRunId });
 }

@@ -30,7 +30,7 @@ type Score = {
   citations: Citation[] | null;
 };
 
-type Detail = { contact: Contact; score: Score | null };
+type Detail = { contact: Contact; score: Score | null; latestRunId: string | null };
 
 const GRADE_STYLES: Record<string, string> = {
   A: "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300",
@@ -45,7 +45,9 @@ export default function ContactDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [runId, setRunId] = useState<string | null>(null);
+  // The run shown in the live view. Seeded from the contact's latest run so the
+  // view replays it on load; a Run/Re-run swaps in the new (live) run id.
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
   const load = useCallback(async () => {
@@ -56,7 +58,12 @@ export default function ContactDetailPage() {
         return;
       }
       if (!res.ok) throw new Error(`contact request failed: ${res.status}`);
-      setDetail(await res.json());
+      const data = (await res.json()) as Detail;
+      setDetail(data);
+      // Seed the live view from the latest run only when nothing is selected yet;
+      // never clobber a run the user just started (a refetch mid-run would return
+      // an older latestRunId until the new run scores).
+      setActiveRunId((prev) => prev ?? data.latestRunId ?? null);
       setLoadFailed(false);
     } catch {
       setLoadFailed(true);
@@ -74,7 +81,7 @@ export default function ContactDetailPage() {
     try {
       const res = await fetch(`/api/runs/${id}`, { method: "POST" });
       const { runId: newRunId } = (await res.json()) as { runId: string };
-      setRunId(newRunId);
+      setActiveRunId(newRunId);
     } finally {
       setStarting(false);
     }
@@ -149,7 +156,7 @@ export default function ContactDetailPage() {
             disabled={starting}
             className="shrink-0 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
           >
-            {starting ? "Starting..." : score ? "Re-run" : "Run"}
+            {starting ? "Starting..." : activeRunId ? "Re-run" : "Run"}
           </button>
         </header>
 
@@ -238,12 +245,16 @@ export default function ContactDetailPage() {
           </div>
         )}
 
-        {runId ? (
-          <div className="mt-8">
-            <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Live run</h2>
-            <LiveView runId={runId} onDone={handleRunDone} />
-          </div>
-        ) : null}
+        <div className="mt-8">
+          <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Live run</h2>
+          {activeRunId ? (
+            <LiveView runId={activeRunId} onDone={handleRunDone} />
+          ) : (
+            <div className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 py-12 text-center dark:border-zinc-700 dark:bg-zinc-950">
+              <p className="text-sm text-zinc-500">Not run yet. Click Run to start the pipeline.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

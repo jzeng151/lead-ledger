@@ -130,7 +130,11 @@ export async function runContact(
     try {
       synth = await deps.synthesize({ bus, dossierJson: synthesisJson, input });
     } catch (e) {
-      bus.emit({ agent: "synthesis", type: "agent_error", payload: { message: e instanceof Error ? e.message : String(e) } });
+      bus.emit({
+        agent: "synthesis",
+        type: "agent_error",
+        payload: { message: e instanceof Error ? e.message : String(e), stack: e instanceof Error ? e.stack : undefined },
+      });
     }
     const rejected = new Set<string>(claims.filter(isRejected).map((c: any) => c.claimId));
     const gate = checkCitations(synth.citations ?? [], mergeSources(partials), rejected);
@@ -179,7 +183,8 @@ export async function runContact(
     bus.emit({ agent: "orchestrator", type: "run_completed", payload: { priority: s.priority } });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    bus.emit({ agent: "orchestrator", type: "agent_error", payload: { message } });
+    const stack = err instanceof Error ? err.stack : undefined;
+    bus.emit({ agent: "orchestrator", type: "agent_error", payload: { message, stack } });
     db.update(runs).set({ status: "error" }).where(eq(runs.id, runId)).run();
   } finally {
     // Keep the bus around briefly for late SSE subscribers, then reclaim it.

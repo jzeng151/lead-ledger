@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { type LiveEvent } from "@/lib/liveViewModel";
 import { AgentTree } from "./AgentTree";
 import { AgentDetail } from "./AgentDetail";
+import { RunTrace } from "./RunTrace";
 
 // Events after which the server closes the stream. Closing the EventSource on
 // these keeps it from auto-reconnecting and replaying the finished run.
@@ -12,6 +13,7 @@ const TERMINAL = new Set(["run_completed", "agent_error", "stream_end"]);
 export function LiveView({ runId, onDone }: { runId: string; onDone?: () => void }) {
   const [events, setEvents] = useState<LiveEvent[]>([]);
   const [selected, setSelected] = useState("orchestrator");
+  const [tab, setTab] = useState<"tree" | "trace">("tree");
   // Once the user clicks a node we stop auto-following the running agent.
   const userPickedRef = useRef(false);
   // Hold the latest onDone in a ref so a new callback identity does not re-open
@@ -70,12 +72,31 @@ export function LiveView({ runId, onDone }: { runId: string; onDone?: () => void
           Run failed: {errorEvent.payload?.message ?? "unknown error"}
         </div>
       ) : null}
-      <div className="grid md:grid-cols-[minmax(220px,300px)_1fr]">
-        <div className="border-b border-zinc-800 md:border-b-0 md:border-r">
-          <AgentTree events={events} selected={selected} onSelect={onSelect} />
-        </div>
-        <AgentDetail events={events} selected={selected} />
+      <div className="flex border-b border-zinc-800 text-xs">
+        {(["tree", "trace"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            aria-current={tab === t ? "true" : undefined}
+            className={`px-4 py-2 font-medium transition-colors ${
+              tab === t ? "border-b-2 border-zinc-300 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            {t === "tree" ? "Tree" : "Trace"}
+          </button>
+        ))}
       </div>
+      {tab === "tree" ? (
+        <div className="grid md:grid-cols-[minmax(220px,300px)_1fr]">
+          <div className="border-b border-zinc-800 md:border-b-0 md:border-r">
+            <AgentTree events={events} selected={selected} onSelect={onSelect} />
+          </div>
+          <AgentDetail events={events} selected={selected} />
+        </div>
+      ) : (
+        <RunTrace events={events} />
+      )}
     </div>
   );
 }

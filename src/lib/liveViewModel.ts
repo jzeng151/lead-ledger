@@ -145,6 +145,59 @@ export function logLines(events: LiveEvent[]): LogLine[] {
   return lines;
 }
 
+export type TraceKind = "info" | "tool" | "done" | "error";
+export type TraceLine = { kind: TraceKind; text: string; stack?: string };
+
+/**
+ * Flatten events into terminal-style trace lines, one per mapped event in order.
+ * Unlike logLines, tokens are not coalesced here (the trace is an event log, not
+ * a streamed transcript); agent_token and stream_end have no mapping and are
+ * skipped. An agent_error carries the message as text plus the raw stack, if the
+ * emitter attached one, so the trace tab can print the real stack trace.
+ */
+export function traceLines(events: LiveEvent[]): TraceLine[] {
+  const lines: TraceLine[] = [];
+  for (const e of events) {
+    const agent = e.agent ?? "";
+    switch (e.type) {
+      case "run_started":
+        lines.push({ kind: "info", text: "run started" });
+        break;
+      case "plan_ready":
+        lines.push({ kind: "info", text: "plan: " + (e.payload?.agents ?? []).join(", ") });
+        break;
+      case "agent_started":
+        lines.push({ kind: "info", text: agent + " started" });
+        break;
+      case "agent_tool_call":
+        lines.push({ kind: "tool", text: agent + " -> " + (e.payload?.name ?? "") });
+        break;
+      case "agent_tool_result":
+        lines.push({ kind: "tool", text: agent + " <- result" });
+        break;
+      case "agent_completed":
+        lines.push({ kind: "done", text: agent + " done" });
+        break;
+      case "scoring_started":
+        lines.push({ kind: "info", text: "scoring..." });
+        break;
+      case "score_ready":
+        lines.push({ kind: "done", text: "scored: priority " + e.payload?.priority + " grade " + e.payload?.grade });
+        break;
+      case "run_completed":
+        lines.push({ kind: "done", text: "run completed" });
+        break;
+      case "agent_error":
+        lines.push({ kind: "error", text: e.payload?.message ?? "unknown error", stack: e.payload?.stack });
+        break;
+      default:
+        // agent_token, stream_end, and any unknown types have no trace line.
+        break;
+    }
+  }
+  return lines;
+}
+
 // ---------------------------------------------------------------------------
 // Orchestration tree
 // ---------------------------------------------------------------------------
