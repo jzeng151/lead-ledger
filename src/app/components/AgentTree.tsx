@@ -5,16 +5,16 @@ import { AGENT_TREE, treeNodeStatus, type LiveEvent, type NodeStatus, type TreeN
 // wait grey / running amber / done green / error red.
 const GLYPH: Record<NodeStatus, string> = { wait: "○", running: "◐", done: "✓", error: "✗" };
 const GLYPH_COLOR: Record<NodeStatus, string> = {
-  wait: "text-zinc-600",
+  wait: "text-slate-600",
   running: "text-amber-400",
-  done: "text-green-400",
-  error: "text-red-400",
+  done: "text-emerald-400",
+  error: "text-rose-400",
 };
 const STATUS_COLOR: Record<NodeStatus, string> = {
-  wait: "text-zinc-600",
+  wait: "text-slate-600",
   running: "text-amber-400",
-  done: "text-green-500",
-  error: "text-red-400",
+  done: "text-emerald-500",
+  error: "text-rose-400",
 };
 
 // Flatten the static tree into rows once, each carrying its connector prefix.
@@ -50,7 +50,7 @@ export function AgentTree({
   onSelect: (key: string) => void;
 }) {
   return (
-    <div className="bg-zinc-950 px-2 py-3 font-mono text-xs">
+    <div className="bg-slate-950 px-2 py-3 font-mono text-xs">
       {ROWS.map(({ node, prefix }) => {
         const status = treeNodeStatus(events, node);
         const isSelected = node.key === selected;
@@ -60,21 +60,21 @@ export function AgentTree({
             type="button"
             onClick={() => onSelect(node.key)}
             aria-current={isSelected ? "true" : undefined}
-            className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left transition-colors ${
+            className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors ${
               isSelected
-                ? "bg-zinc-800 ring-1 ring-inset ring-zinc-600"
+                ? "bg-slate-800 ring-1 ring-inset ring-slate-600"
                 : status === "running"
-                  ? "bg-amber-500/5 hover:bg-zinc-900"
-                  : "hover:bg-zinc-900"
+                  ? "bg-amber-500/10 hover:bg-slate-900"
+                  : "hover:bg-slate-900"
             }`}
           >
-            <span className="whitespace-pre text-zinc-700">{prefix}</span>
+            <span className="whitespace-pre text-slate-700">{prefix}</span>
             <span
               className={`inline-block w-4 text-center ${GLYPH_COLOR[status]} ${status === "running" ? "animate-spin" : ""}`}
             >
               {GLYPH[status]}
             </span>
-            <span className={`flex-1 truncate ${isSelected ? "text-zinc-100" : "text-zinc-300"}`}>{node.label}</span>
+            <span className={`flex-1 truncate ${isSelected ? "text-slate-100" : "text-slate-300"}`}>{node.label}</span>
             <span className={`shrink-0 ${STATUS_COLOR[status]}`}>{status}</span>
           </button>
         );

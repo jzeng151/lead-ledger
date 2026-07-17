@@ -1,27 +1,205 @@
 @import "tailwindcss";
 @config "../../tailwind.config.ts";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* Semantic tokens mapped to per-theme CSS variables. @theme inline is required
+   so opacity modifiers (ring-accent/40, focus:ring-accent/20) resolve against
+   the variables. Only the neutral + accent chrome is themed; the live-run
+   console is a fixed dark terminal in both modes by design. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent-soft: var(--on-accent-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+:root {
+  color-scheme: light dark;
+
+  /* Active tokens default to the SaaS light theme. */
+  --canvas: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --line: rgb(226 232 240 / 0.8);
+  --line-2: #e2e8f0;
+  --fg: #0f172a;
+  --muted: #475569;
+  --subtle: #94a3b8;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --on-accent: #ffffff;
+  --accent-soft: #eef2ff;
+  --on-accent-soft: #4338ca;
+  --glow: rgb(224 231 255 / 0.7);
+  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -6px rgba(15, 23, 42, 0.08);
+
+  --tone-slate-bg: #f1f5f9;
+  --tone-slate-fg: #475569;
+  --tone-slate-ring: rgb(100 116 139 / 0.15);
+  --tone-emerald-bg: #ecfdf5;
+  --tone-emerald-fg: #047857;
+  --tone-emerald-ring: rgb(5 150 105 / 0.2);
+  --tone-sky-bg: #f0f9ff;
+  --tone-sky-fg: #0369a1;
+  --tone-sky-ring: rgb(2 132 199 / 0.2);
+  --tone-amber-bg: #fffbeb;
+  --tone-amber-fg: #b45309;
+  --tone-amber-ring: rgb(217 119 6 / 0.2);
+  --tone-rose-bg: #fff1f2;
+  --tone-rose-fg: #be123c;
+  --tone-rose-ring: rgb(225 29 72 / 0.2);
+  --tone-accent-bg: var(--accent-soft);
+  --tone-accent-fg: var(--on-accent-soft);
+  --tone-accent-ring: rgb(79 70 229 / 0.2);
+
+  /* Linear dark palette. Held here so the two dark selectors below reference one
+     source of truth and can never drift apart. */
+  --dk-canvas: #0b0d10;
+  --dk-surface: #121419;
+  --dk-surface-2: #1b1f27;
+  --dk-line: rgb(255 255 255 / 0.07);
+  --dk-line-2: rgb(255 255 255 / 0.1);
+  --dk-fg: #e6e8ec;
+  --dk-muted: #9ba1ac;
+  --dk-subtle: #6b7280;
+  --dk-accent: #6366f1;
+  --dk-accent-hover: #4f46e5;
+  --dk-on-accent: #ffffff;
+  --dk-accent-soft: rgb(99 102 241 / 0.15);
+  --dk-on-accent-soft: #a5b4fc;
+  --dk-glow: rgb(99 102 241 / 0.12);
+  --dk-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --dk-tone-slate-bg: rgb(148 163 184 / 0.14);
+  --dk-tone-slate-fg: #cbd5e1;
+  --dk-tone-slate-ring: rgb(148 163 184 / 0.24);
+  --dk-tone-emerald-bg: rgb(16 185 129 / 0.15);
+  --dk-tone-emerald-fg: #6ee7b7;
+  --dk-tone-emerald-ring: rgb(16 185 129 / 0.3);
+  --dk-tone-sky-bg: rgb(14 165 233 / 0.15);
+  --dk-tone-sky-fg: #7dd3fc;
+  --dk-tone-sky-ring: rgb(14 165 233 / 0.3);
+  --dk-tone-amber-bg: rgb(245 158 11 / 0.15);
+  --dk-tone-amber-fg: #fcd34d;
+  --dk-tone-amber-ring: rgb(245 158 11 / 0.3);
+  --dk-tone-rose-bg: rgb(244 63 94 / 0.15);
+  --dk-tone-rose-fg: #fda4af;
+  --dk-tone-rose-ring: rgb(244 63 94 / 0.3);
+  --dk-tone-accent-ring: rgb(99 102 241 / 0.35);
+}
+
+/* Dark = Linear. Applied by system preference (unless the user forced light) or
+   by the manual toggle. Both remap the active tokens to the --dk-* palette. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --canvas: var(--dk-canvas);
+    --surface: var(--dk-surface);
+    --surface-2: var(--dk-surface-2);
+    --line: var(--dk-line);
+    --line-2: var(--dk-line-2);
+    --fg: var(--dk-fg);
+    --muted: var(--dk-muted);
+    --subtle: var(--dk-subtle);
+    --accent: var(--dk-accent);
+    --accent-hover: var(--dk-accent-hover);
+    --on-accent: var(--dk-on-accent);
+    --accent-soft: var(--dk-accent-soft);
+    --on-accent-soft: var(--dk-on-accent-soft);
+    --glow: var(--dk-glow);
+    --card-shadow: var(--dk-card-shadow);
+    --tone-slate-bg: var(--dk-tone-slate-bg);
+    --tone-slate-fg: var(--dk-tone-slate-fg);
+    --tone-slate-ring: var(--dk-tone-slate-ring);
+    --tone-emerald-bg: var(--dk-tone-emerald-bg);
+    --tone-emerald-fg: var(--dk-tone-emerald-fg);
+    --tone-emerald-ring: var(--dk-tone-emerald-ring);
+    --tone-sky-bg: var(--dk-tone-sky-bg);
+    --tone-sky-fg: var(--dk-tone-sky-fg);
+    --tone-sky-ring: var(--dk-tone-sky-ring);
+    --tone-amber-bg: var(--dk-tone-amber-bg);
+    --tone-amber-fg: var(--dk-tone-amber-fg);
+    --tone-amber-ring: var(--dk-tone-amber-ring);
+    --tone-rose-bg: var(--dk-tone-rose-bg);
+    --tone-rose-fg: var(--dk-tone-rose-fg);
+    --tone-rose-ring: var(--dk-tone-rose-ring);
+    --tone-accent-ring: var(--dk-tone-accent-ring);
   }
+}
+[data-theme="dark"] {
+  --canvas: var(--dk-canvas);
+  --surface: var(--dk-surface);
+  --surface-2: var(--dk-surface-2);
+  --line: var(--dk-line);
+  --line-2: var(--dk-line-2);
+  --fg: var(--dk-fg);
+  --muted: var(--dk-muted);
+  --subtle: var(--dk-subtle);
+  --accent: var(--dk-accent);
+  --accent-hover: var(--dk-accent-hover);
+  --on-accent: var(--dk-on-accent);
+  --accent-soft: var(--dk-accent-soft);
+  --on-accent-soft: var(--dk-on-accent-soft);
+  --glow: var(--dk-glow);
+  --card-shadow: var(--dk-card-shadow);
+  --tone-slate-bg: var(--dk-tone-slate-bg);
+  --tone-slate-fg: var(--dk-tone-slate-fg);
+  --tone-slate-ring: var(--dk-tone-slate-ring);
+  --tone-emerald-bg: var(--dk-tone-emerald-bg);
+  --tone-emerald-fg: var(--dk-tone-emerald-fg);
+  --tone-emerald-ring: var(--dk-tone-emerald-ring);
+  --tone-sky-bg: var(--dk-tone-sky-bg);
+  --tone-sky-fg: var(--dk-tone-sky-fg);
+  --tone-sky-ring: var(--dk-tone-sky-ring);
+  --tone-amber-bg: var(--dk-tone-amber-bg);
+  --tone-amber-fg: var(--dk-tone-amber-fg);
+  --tone-amber-ring: var(--dk-tone-amber-ring);
+  --tone-rose-bg: var(--dk-tone-rose-bg);
+  --tone-rose-fg: var(--dk-tone-rose-fg);
+  --tone-rose-ring: var(--dk-tone-rose-ring);
+  --tone-accent-ring: var(--dk-tone-accent-ring);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--canvas);
+  color: var(--fg);
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@layer components {
+  /* Elevated surface: hairline border + a theme-tuned shadow. */
+  .card {
+    @apply rounded-xl border border-line bg-surface;
+    box-shadow: var(--card-shadow);
+  }
+
+  /* Tiny uppercase section label. */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-subtle;
+  }
+
+  /* Buttons compose base .btn + a modifier in markup. */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-accent text-on-accent shadow-sm hover:bg-accent-hover;
+  }
+  .btn-ghost {
+    @apply border border-line bg-surface text-muted hover:bg-surface-2 hover:text-fg;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm tabular-nums text-fg transition-colors placeholder:text-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20;
+  }
 }

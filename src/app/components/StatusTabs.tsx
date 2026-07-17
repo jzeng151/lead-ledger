@@ -26,23 +26,29 @@ export function StatusTabs({
   onChange: (tab: Tab) => void;
 }) {
   return (
-    <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
-      {TABS.map((tab) => (
-        <button
-          key={tab}
-          onClick={() => onChange(tab)}
-          className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-            active === tab
-              ? "border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
-              : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300"
-          }`}
-        >
-          {tab}
-          <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs tabular-nums text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-            {counts[tab]}
-          </span>
-        </button>
-      ))}
+    <div className="flex gap-1 border-b border-line">
+      {TABS.map((tab) => {
+        const isActive = active === tab;
+        return (
+          <button
+            key={tab}
+            onClick={() => onChange(tab)}
+            aria-current={isActive ? "true" : undefined}
+            className={`-mb-px flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors ${
+              isActive ? "border-accent text-fg" : "border-transparent text-muted hover:text-fg"
+            }`}
+          >
+            {tab}
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${
+                isActive ? "bg-accent-soft text-on-accent-soft" : "bg-surface-2 text-muted"
+              }`}
+            >
+              {counts[tab]}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

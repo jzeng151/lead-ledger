@@ -95,15 +95,15 @@ export function IcpEditor() {
   }
 
   if (!config) {
-    return <p className="text-sm text-zinc-500">Loading settings...</p>;
+    return <p className="text-sm text-subtle">Loading settings...</p>;
   }
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
+    <div className="card p-6">
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         {KNOBS.map((knob) => (
           <label key={knob.label} className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{knob.label}</span>
+            <span className="text-sm font-medium text-fg">{knob.label}</span>
             <input
               type="number"
               step={knob.step}
@@ -114,22 +114,23 @@ export function IcpEditor() {
                 setConfig((prev) => (prev ? knob.set(prev, v) : prev));
                 setSaved(false);
               }}
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm tabular-nums text-zinc-900 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              className="input"
             />
-            {knob.hint ? <span className="text-xs text-zinc-500">{knob.hint}</span> : null}
+            {knob.hint ? <span className="text-xs text-subtle">{knob.hint}</span> : null}
           </label>
         ))}
       </div>
 
       <div className="mt-6 flex items-center gap-3">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-        >
-          {saving ? "Saving..." : "Save"}
+        <button onClick={handleSave} disabled={saving} className="btn btn-primary">
+          {saving ? "Saving..." : "Save changes"}
         </button>
-        {saved ? <span className="text-sm text-green-600 dark:text-green-400">Saved</span> : null}
+        {saved ? (
+          <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--tone-emerald-fg)]">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--tone-emerald-fg)]" />
+            Saved
+          </span>
+        ) : null}
       </div>
     </div>
   );

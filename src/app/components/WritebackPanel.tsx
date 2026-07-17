@@ -44,48 +44,60 @@ export function WritebackPanel({
   }
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-      <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Write to HubSpot</h2>
-      <p className="mt-1 text-xs text-zinc-500">Will write to HubSpot on approve.</p>
+    <div className="card p-6">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-fg">Write to HubSpot</h2>
+        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted">
+          Human approval required
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-subtle">These properties are written to the contact on approve.</p>
 
-      <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs leading-relaxed text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-        <div>lead_priority_score = {score.priority}</div>
-        <div>lead_grade = &quot;{score.grade}&quot;</div>
-        <div className="mt-1 text-zinc-500">+ timeline note: rationale and next step</div>
+      <div className="mt-3.5 overflow-hidden rounded-lg border border-slate-800 bg-slate-950 font-mono text-xs leading-relaxed">
+        <div className="flex items-center gap-1.5 border-b border-slate-800 px-3 py-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
+          <span className="ml-2 text-[10px] uppercase tracking-wider text-slate-500">payload</span>
+        </div>
+        <div className="px-3.5 py-3 text-slate-300">
+          <div>
+            <span className="text-sky-400">lead_priority_score</span> <span className="text-slate-500">=</span>{" "}
+            <span className="text-emerald-400">{score.priority}</span>
+          </div>
+          <div>
+            <span className="text-sky-400">lead_grade</span> <span className="text-slate-500">=</span>{" "}
+            <span className="text-amber-300">&quot;{score.grade}&quot;</span>
+          </div>
+          <div className="mt-1 text-slate-500">+ timeline note: rationale and next step</div>
+        </div>
       </div>
 
       {score.needsReview ? (
-        <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+        <p className="mt-3 text-xs text-[var(--tone-amber-fg)]">
           Flagged needs review. You can still approve it individually.
         </p>
       ) : null}
 
       {result ? (
-        <p className="mt-4 text-sm font-medium text-green-700 dark:text-green-400">
+        <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-[var(--tone-emerald-fg)]">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--tone-emerald-fg)]" />
           {result.dryRun ? "Written (dry run)" : "Written to HubSpot"}
         </p>
       ) : skipped ? (
-        <p className="mt-4 text-sm text-zinc-500">Skipped.</p>
+        <p className="mt-4 text-sm text-subtle">Skipped.</p>
       ) : (
-        <div className="mt-4 flex items-center gap-3">
-          <button
-            onClick={handleApprove}
-            disabled={busy}
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          >
+        <div className="mt-4 flex items-center gap-2.5">
+          <button onClick={handleApprove} disabled={busy} className="btn btn-primary">
             {busy ? "Writing..." : "Approve & write"}
           </button>
-          <button
-            onClick={() => setSkipped(true)}
-            disabled={busy}
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-          >
+          <button onClick={() => setSkipped(true)} disabled={busy} className="btn btn-ghost">
             Skip
           </button>
         </div>
       )}
 
-      {error ? <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm text-[var(--tone-rose-fg)]">{error}</p> : null}
     </div>
   );
 }

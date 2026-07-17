@@ -1,21 +1,22 @@
 // Two labeled 0-100 bars for a contact's fit and engagement subscores. Purely
-// presentational; used on the contact detail page.
+// presentational; used on the contact detail page. Fit reads brand indigo,
+// engagement sky, so the two axes are distinguishable at a glance.
 export function ScoreBars({ fit, engagement }: { fit: number; engagement: number }) {
   const bars = [
-    { label: "Fit", value: fit },
-    { label: "Engagement", value: engagement },
+    { label: "Fit", value: fit, fill: "bg-gradient-to-r from-accent to-accent-hover" },
+    { label: "Engagement", value: engagement, fill: "bg-[var(--tone-sky-fg)]" },
   ];
   return (
-    <div className="flex flex-col gap-3">
-      {bars.map(({ label, value }) => (
-        <div key={label} className="flex flex-col gap-1">
-          <div className="flex justify-between text-xs font-medium text-zinc-600 dark:text-zinc-400">
-            <span>{label}</span>
-            <span className="tabular-nums">{Math.round(value)}</span>
+    <div className="flex flex-col gap-4">
+      {bars.map(({ label, value, fill }) => (
+        <div key={label} className="flex flex-col gap-1.5">
+          <div className="flex items-baseline justify-between">
+            <span className="text-xs font-medium text-muted">{label}</span>
+            <span className="text-sm font-semibold tabular-nums text-fg">{Math.round(value)}</span>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
             <div
-              className="h-full rounded-full bg-green-500"
+              className={`h-full rounded-full ${fill} transition-[width] duration-500`}
               style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
             />
           </div>

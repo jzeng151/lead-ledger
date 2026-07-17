@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import type { QueueRow } from "@/lib/queueModel";
 import { RankedQueue } from "./components/RankedQueue";
 import { StatusTabs, TABS, tabMatches, type Tab } from "./components/StatusTabs";
@@ -69,60 +68,41 @@ export default function Home() {
   const visible = useMemo(() => rows.filter((r) => tabMatches(tab, r)), [rows, tab]);
 
   return (
-    <div className="min-h-full bg-zinc-50 dark:bg-black">
-      <div className="mx-auto max-w-4xl px-6 py-10">
-        <header className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Lead Ledger</h1>
-            <p className="mt-1 max-w-xl text-sm text-zinc-600 dark:text-zinc-400">
-              Tracepoint sells an observability API to funded software startups. Lead Ledger scores each
-              HubSpot contact on fit and engagement so a rep works the best lead first, not the freshest.
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            <Link
-              href="/icp"
-              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-            >
-              Scoring settings
-            </Link>
-            <button
-              onClick={handleBatchApprove}
-              disabled={approving}
-              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-            >
-              {approving ? "Approving..." : "Approve clear A/B leads"}
-            </button>
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-            >
-              {syncing ? "Syncing..." : "Sync"}
-            </button>
-          </div>
-        </header>
-
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="px-4 pt-2">
-            <StatusTabs active={tab} counts={counts} onChange={setTab} />
-          </div>
-          {loading ? (
-            <p className="px-4 py-12 text-center text-sm text-zinc-500">Loading contacts...</p>
-          ) : loadFailed ? (
-            <div className="px-4 py-12 text-center">
-              <p className="text-sm text-zinc-500">Could not load contacts.</p>
-              <button
-                onClick={loadContacts}
-                className="mt-3 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
-              >
-                Retry
-              </button>
-            </div>
-          ) : (
-            <RankedQueue rows={visible} />
-          )}
+    <div className="mx-auto max-w-5xl px-6 py-10">
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">Prioritization queue</h1>
+          <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted">
+            Tracepoint sells an observability API to funded software startups. Every HubSpot contact is scored
+            on fit and engagement so a rep works the best lead first, not the freshest.
+          </p>
         </div>
+        <div className="flex shrink-0 items-center gap-2.5">
+          <button onClick={handleBatchApprove} disabled={approving} className="btn btn-ghost">
+            {approving ? "Approving..." : "Approve clear A/B"}
+          </button>
+          <button onClick={handleSync} disabled={syncing} className="btn btn-primary">
+            {syncing ? "Syncing..." : "Sync contacts"}
+          </button>
+        </div>
+      </header>
+
+      <div className="card overflow-hidden">
+        <div className="px-3 pt-2">
+          <StatusTabs active={tab} counts={counts} onChange={setTab} />
+        </div>
+        {loading ? (
+          <p className="px-4 py-16 text-center text-sm text-subtle">Loading contacts...</p>
+        ) : loadFailed ? (
+          <div className="px-4 py-16 text-center">
+            <p className="text-sm text-muted">Could not load contacts.</p>
+            <button onClick={loadContacts} className="btn btn-ghost mt-3">
+              Retry
+            </button>
+          </div>
+        ) : (
+          <RankedQueue rows={visible} />
+        )}
       </div>
     </div>
   );

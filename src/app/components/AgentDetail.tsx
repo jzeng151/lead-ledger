@@ -12,20 +12,20 @@ import {
 } from "@/lib/liveViewModel";
 
 const STATUS_BADGE: Record<NodeStatus, string> = {
-  wait: "border-zinc-700 bg-zinc-800/60 text-zinc-400",
+  wait: "border-slate-700 bg-slate-800/60 text-slate-400",
   running: "border-amber-500 bg-amber-500/15 text-amber-300",
-  done: "border-green-500 bg-green-500/15 text-green-300",
-  error: "border-red-500 bg-red-500/15 text-red-300",
+  done: "border-emerald-500 bg-emerald-500/15 text-emerald-300",
+  error: "border-rose-500 bg-rose-500/15 text-rose-300",
 };
 
 // Reuse the log's marker coloring for the orchestrator timeline.
 function markerClass(text: string): string {
   const t = text.trimStart();
-  if (t.startsWith("✓")) return "text-green-400";
-  if (t.startsWith("✗")) return "text-red-400";
+  if (t.startsWith("✓")) return "text-emerald-400";
+  if (t.startsWith("✗")) return "text-rose-400";
   if (t.startsWith("▸")) return "text-amber-400";
-  if (t.startsWith("·")) return "text-zinc-500";
-  return "text-zinc-300";
+  if (t.startsWith("·")) return "text-slate-500";
+  return "text-slate-300";
 }
 
 function StatusBadge({ status }: { status: NodeStatus }) {
@@ -49,9 +49,9 @@ export function AgentDetail({ events, selected }: { events: LiveEvent[]; selecte
   }, [detail.text, events.length, selected]);
 
   return (
-    <div className="flex h-96 flex-col bg-black font-mono text-xs">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-4 py-2.5">
-        <span className="font-semibold text-zinc-100">{label}</span>
+    <div className="flex h-96 flex-col bg-slate-950 font-mono text-xs">
+      <header className="flex items-center justify-between border-b border-slate-800 px-4 py-2.5">
+        <span className="font-semibold text-slate-100">{label}</span>
         <StatusBadge status={detail.status} />
       </header>
 
@@ -78,9 +78,9 @@ function OrchestratorTimeline({
   const lines = logLines(events);
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 leading-relaxed">
-      <div className="mb-2 text-[10px] uppercase tracking-wide text-zinc-600">run timeline</div>
+      <div className="mb-2 text-[10px] uppercase tracking-wide text-slate-600">run timeline</div>
       {lines.length === 0 ? (
-        <div className="text-zinc-600">waiting for the run to start...</div>
+        <div className="text-slate-600">waiting for the run to start...</div>
       ) : (
         lines.map((l, i) => (
           <pre key={i} className={`whitespace-pre-wrap break-words ${markerClass(l.text)}`}>
@@ -100,17 +100,17 @@ function FanoutSummary({ events }: { events: LiveEvent[] }) {
   const done = children.filter((c) => treeNodeStatus(events, c) === "done").length;
   const errored = children.filter((c) => treeNodeStatus(events, c) === "error").length;
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-3 leading-relaxed text-zinc-300">
-      <p className="text-zinc-400">The five retrieval agents run in parallel, then feed verification and ICP-fit.</p>
+    <div className="flex-1 overflow-y-auto px-4 py-3 leading-relaxed text-slate-300">
+      <p className="text-slate-400">The five retrieval agents run in parallel, then feed verification and ICP-fit.</p>
       <ul className="mt-3 space-y-1">
         {children.map((c) => (
           <li key={c.key} className="flex items-center justify-between">
             <span>{c.label}</span>
-            <span className="text-zinc-500">{treeNodeStatus(events, c)}</span>
+            <span className="text-slate-500">{treeNodeStatus(events, c)}</span>
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-zinc-500">
+      <p className="mt-3 text-slate-500">
         {done} done · {running} running · {errored} error · of {children.length}
       </p>
     </div>
@@ -128,19 +128,19 @@ function AgentBody({
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {idle ? (
-        <div className="px-4 py-3 text-zinc-600">waiting for this agent to start...</div>
+        <div className="px-4 py-3 text-slate-600">waiting for this agent to start...</div>
       ) : (
         <>
           {detail.toolCalls.length > 0 ? (
-            <div className="border-b border-zinc-800/70 px-4 py-2.5">
-              <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-600">tool calls</div>
+            <div className="border-b border-slate-800/70 px-4 py-2.5">
+              <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-600">tool calls</div>
               <ul className="space-y-0.5">
                 {detail.toolCalls.map((t, i) => (
                   <li key={i} className="flex items-center gap-2">
-                    <span className={`inline-block w-3 text-center ${t.done ? "text-green-400" : "text-amber-400"}`}>
+                    <span className={`inline-block w-3 text-center ${t.done ? "text-emerald-400" : "text-amber-400"}`}>
                       <span className={t.done ? "" : "inline-block animate-spin"}>{t.done ? "✓" : "◐"}</span>
                     </span>
-                    <span className="text-zinc-300">{t.name}</span>
+                    <span className="text-slate-300">{t.name}</span>
                   </li>
                 ))}
               </ul>
@@ -149,16 +149,16 @@ function AgentBody({
 
           <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-2.5 leading-relaxed">
             {detail.text ? (
-              <pre className="whitespace-pre-wrap break-words text-zinc-300">{detail.text}</pre>
+              <pre className="whitespace-pre-wrap break-words text-slate-300">{detail.text}</pre>
             ) : (
-              <div className="text-zinc-600">no streamed output</div>
+              <div className="text-slate-600">no streamed output</div>
             )}
           </div>
 
           {detail.findings != null ? (
-            <details className="border-t border-zinc-800/70 px-4 py-2.5" open>
-              <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-zinc-500">findings</summary>
-              <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-zinc-400">
+            <details className="border-t border-slate-800/70 px-4 py-2.5" open>
+              <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-slate-500">findings</summary>
+              <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-slate-400">
                 {JSON.stringify(detail.findings, null, 2)}
               </pre>
             </details>
@@ -173,8 +173,6 @@ function AgentBody({
 
 function ErrorBox({ message }: { message: string }) {
   return (
-    <div className="mx-4 my-3 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-red-300">
-      {message}
-    </div>
+    <div className="mx-4 my-3 rounded border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-rose-300">{message}</div>
   );
 }
