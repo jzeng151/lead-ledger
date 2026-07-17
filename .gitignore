@@ -20,3 +20,4 @@ data.sqlite-*
 *.pem
 *.tsbuildinfo
 npm-debug.log*
+.gstack/

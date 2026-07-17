@@ -89,9 +89,12 @@ export const IcpFitFindings = z.object({
   conflicts: z.array(z.string()),
 });
 
-// 8. Synthesis (Opus rep-facing verdict)
+// 8. Synthesis (Opus rep-facing verdict). Fields are lenient: synthesis is the
+// rep-facing enhancement layer, not scoring input, so a model that omits nextStep
+// or citations must not fail validation and abort a run whose score is already
+// computed. The orchestrator coalesces missing fields to null / [].
 export const SynthesisOutput = z.object({
-  rationale: z.string(),
-  nextStep: z.string(),
-  citations: z.array(z.object({ text: z.string(), ref: z.string() })),
+  rationale: z.string().nullish(),
+  nextStep: z.string().nullish(),
+  citations: z.array(z.object({ text: z.string(), ref: z.string() })).nullish(),
 });

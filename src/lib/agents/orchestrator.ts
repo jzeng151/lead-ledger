@@ -11,7 +11,11 @@ import { SynthesisOutput } from "./schemas";
 
 const { contacts, runs, scores, dossiers, writebacks, icpConfig } = schema;
 
-type Synthesis = { rationale: string; nextStep: string; citations: { text: string; ref: string }[] };
+type Synthesis = {
+  rationale?: string | null;
+  nextStep?: string | null;
+  citations?: { text: string; ref: string }[] | null;
+};
 
 export type OrchestratorDeps = {
   runSub: typeof runSubagent;
@@ -112,9 +116,16 @@ export async function runContact(
     // the synthesis input after scoring so the writer sees the full picture:
     // partials plus the ICP-Fit read, verification verdicts, and computed score.
     const synthesisJson = JSON.stringify({ ...partials, icpFit, verification, score: s, icp });
-    const synth = await deps.synthesize({ bus, dossierJson: synthesisJson, input });
+    // Synthesis is non-fatal: it is the rep-facing rationale layer, not scoring
+    // input, so a synthesis failure must never discard an already-computed score.
+    let synth: Synthesis = { rationale: null, nextStep: null, citations: [] };
+    try {
+      synth = await deps.synthesize({ bus, dossierJson: synthesisJson, input });
+    } catch (e) {
+      bus.emit({ agent: "synthesis", type: "agent_error", payload: { message: e instanceof Error ? e.message : String(e) } });
+    }
     const rejected = new Set<string>(claims.filter(isRejected).map((c: any) => c.claimId));
-    const gate = checkCitations(synth.citations, mergeSources(partials), rejected);
+    const gate = checkCitations(synth.citations ?? [], mergeSources(partials), rejected);
 
     bus.emit({ agent: "scorer", type: "score_ready", payload: s });
 
@@ -133,8 +144,8 @@ export async function runContact(
       grade: s.grade,
       needsReview: s.needsReview,
       reviewReasons: s.reviewReasons,
-      rationale: synth.rationale,
-      nextStep: synth.nextStep,
+      rationale: synth.rationale ?? null,
+      nextStep: synth.nextStep ?? null,
       citations: gate.kept,
     };
     db.insert(scores)
@@ -144,7 +155,7 @@ export async function runContact(
 
     const writeback = {
       properties: { lead_priority_score: s.priority, lead_grade: s.grade },
-      note: synth.rationale,
+      note: synth.rationale ?? "",
     };
     db.insert(writebacks)
       .values({ contactId, status: "pending", payload: writeback })
