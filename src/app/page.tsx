@@ -10,6 +10,7 @@ export default function Home() {
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [tab, setTab] = useState<Tab>("All");
 
   async function loadContacts() {
@@ -29,6 +30,27 @@ export default function Home() {
       await loadContacts();
     } finally {
       setSyncing(false);
+    }
+  }
+
+  // Batch-approve clear A/B leads. Needs-review rows are filtered out client-side
+  // (status !== "needs review") and 409-guarded server-side; any 409 is ignored.
+  async function handleBatchApprove() {
+    setApproving(true);
+    try {
+      const targets = rows.filter((r) => (r.grade === "A" || r.grade === "B") && r.status === "scored");
+      await Promise.all(
+        targets.map((r) =>
+          fetch(`/api/writeback/${r.contactId}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ batch: true }),
+          }).catch(() => {}),
+        ),
+      );
+      await loadContacts();
+    } finally {
+      setApproving(false);
     }
   }
 
@@ -55,6 +77,13 @@ export default function Home() {
             >
               Scoring settings
             </Link>
+            <button
+              onClick={handleBatchApprove}
+              disabled={approving}
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+            >
+              {approving ? "Approving..." : "Approve clear A/B leads"}
+            </button>
             <button
               onClick={handleSync}
               disabled={syncing}

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ScoreBars } from "@/app/components/ScoreBars";
 import { LiveView } from "@/app/components/LiveView";
+import { WritebackPanel } from "@/app/components/WritebackPanel";
 
 type Contact = {
   id: string;
@@ -192,6 +193,18 @@ export default function ContactDetailPage() {
                 <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{score.nextStep}</p>
               </div>
             ) : null}
+
+            <WritebackPanel
+              contactId={contact.id}
+              score={{
+                priority: score.priority,
+                grade: score.grade,
+                rationale: score.rationale,
+                nextStep: score.nextStep,
+                needsReview: score.needsReview,
+              }}
+              onApproved={load}
+            />
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 py-12 text-center dark:border-zinc-700 dark:bg-zinc-950">
