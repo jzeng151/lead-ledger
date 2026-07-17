@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import type { QueueRow } from "@/lib/queueModel";
 import { RankedQueue } from "./components/RankedQueue";
 import { StatusTabs, TABS, tabMatches, type Tab } from "./components/StatusTabs";
@@ -47,13 +48,21 @@ export default function Home() {
               Tracepoint&apos;s sales queue - which contacts to work first, and why.
             </p>
           </div>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="shrink-0 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          >
-            {syncing ? "Syncing..." : "Sync"}
-          </button>
+          <div className="flex shrink-0 items-center gap-3">
+            <Link
+              href="/icp"
+              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+            >
+              Scoring settings
+            </Link>
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            >
+              {syncing ? "Syncing..." : "Sync"}
+            </button>
+          </div>
         </header>
 
         <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
