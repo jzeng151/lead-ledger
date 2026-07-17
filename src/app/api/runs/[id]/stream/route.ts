@@ -18,9 +18,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       const rows = db.select().from(schema.runEvents).where(eq(schema.runEvents.runId, runId)).orderBy(asc(schema.runEvents.id)).all();
       for (const r of rows) send({ agent: r.agent, type: r.type, payload: r.payload });
 
-      // 2. attach to live bus, or end if the run is done
+      // 2. attach to live bus, or end if the run is done. A finished run keeps its
+      // bus alive for a 30s tail; subscribing to that idle bus would hang forever
+      // since the terminal event already fired, so end on a terminal status too.
+      const runRow = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get();
+      const terminal = runRow?.status === "scored" || runRow?.status === "error";
       const bus = getBus(runId);
-      if (!bus) { send({ type: "stream_end" }); close(); return; }
+      if (terminal || !bus) { send({ type: "stream_end" }); close(); return; }
       const handler = (e: { type: string }) => {
         send(e);
         if (e.type === "run_completed" || e.type === "agent_error") { bus.off(handler); setTimeout(close, 50); }
