@@ -144,3 +144,150 @@ export function logLines(events: LiveEvent[]): LogLine[] {
 
   return lines;
 }
+
+// ---------------------------------------------------------------------------
+// Orchestration tree
+// ---------------------------------------------------------------------------
+
+export type TreeNode = { key: string; label: string; children?: TreeNode[] };
+
+// The orchestration hierarchy shown in the interactive tree. Keys that start
+// with "_" are non-agent grouping nodes: they emit no events of their own and
+// derive their status from their children (see treeNodeStatus).
+export const AGENT_TREE: TreeNode = {
+  key: "orchestrator",
+  label: "Orchestrator",
+  children: [
+    {
+      key: "_fanout",
+      label: "Retrieval (parallel)",
+      children: [
+        { key: "company", label: "Company" },
+        { key: "contact", label: "Contact" },
+        { key: "tech", label: "Tech Stack" },
+        { key: "news", label: "News / Triggers" },
+        { key: "engagement", label: "Engagement" },
+      ],
+    },
+    { key: "verification", label: "Verification" },
+    { key: "icpfit", label: "ICP-Fit" },
+    { key: "scorer", label: "Scorer" },
+    { key: "synthesis", label: "Synthesis" },
+  ],
+};
+
+// A grouping node has no events of its own; its key is the "_"-prefixed marker.
+function isGroupNode(node: TreeNode): boolean {
+  return node.key.startsWith("_");
+}
+
+/** Depth-first lookup of a node by key. Returns null when the key is unknown. */
+export function findTreeNode(node: TreeNode, key: string): TreeNode | null {
+  if (node.key === key) return node;
+  for (const child of node.children ?? []) {
+    const found = findTreeNode(child, key);
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
+ * Status of any tree node.
+ *   - Agent nodes (orchestrator, retrieval agents, verification, icpfit,
+ *     scorer, synthesis) read their own events via nodeStatus. The orchestrator
+ *     is an agent node that also has children; its status is still its own.
+ *   - Group nodes ("_fanout") aggregate their children: error if any child
+ *     errored, else running if any child is running, else done when every child
+ *     is done, else wait. Error wins over running so a failed fan-out reads as
+ *     failed rather than hiding behind a sibling that is still streaming.
+ */
+export function treeNodeStatus(events: LiveEvent[], node: TreeNode): NodeStatus {
+  if (isGroupNode(node)) {
+    const statuses = (node.children ?? []).map((c) => treeNodeStatus(events, c));
+    if (statuses.some((s) => s === "error")) return "error";
+    if (statuses.some((s) => s === "running")) return "running";
+    if (statuses.length > 0 && statuses.every((s) => s === "done")) return "done";
+    return "wait";
+  }
+  return nodeStatus(events, node.key);
+}
+
+export type ToolCall = { name: string; done: boolean };
+
+export type AgentDetailState = {
+  status: NodeStatus;
+  toolCalls: ToolCall[];
+  text: string;
+  findings: unknown | null;
+  error: string | null;
+};
+
+/**
+ * Derive one agent's progress from the event list, for the detail pane.
+ *
+ *   - toolCalls: each agent_tool_call in order; a later agent_tool_result for
+ *     the same agent closes the earliest still-open call (simple sequential
+ *     pairing, since a result only carries the tool_use id, not the name). When
+ *     the agent reaches "done" any calls still open are closed too, so the
+ *     terminal submit_findings call does not spin forever.
+ *   - text: all agent_token deltas for this agent, coalesced in order.
+ *   - findings: the payload of the agent's completion event
+ *     (agent_completed / score_ready / run_completed).
+ *   - error: the agent's own agent_error message. A retrieval child carries no
+ *     error of its own but can be interrupted when the orchestrator aborts the
+ *     run; in that case its status is "error" and the run-level message is
+ *     surfaced so the pane explains the red status.
+ *
+ * The "_fanout" group has no events; it returns an aggregate status with empty
+ * detail, and the pane renders a short parallel-run summary from the tree.
+ */
+export function agentDetail(events: LiveEvent[], agentKey: string): AgentDetailState {
+  const groupNode = agentKey.startsWith("_") ? findTreeNode(AGENT_TREE, agentKey) : null;
+  if (groupNode) {
+    return { status: treeNodeStatus(events, groupNode), toolCalls: [], text: "", findings: null, error: null };
+  }
+
+  const status = nodeStatus(events, agentKey);
+  const toolCalls: ToolCall[] = [];
+  let nextOpen = 0; // index of the earliest tool call not yet closed by a result
+  let text = "";
+  let findings: unknown | null = null;
+  let error: string | null = null;
+
+  for (const e of events) {
+    if (e.agent !== agentKey) continue;
+    switch (e.type) {
+      case "agent_tool_call":
+        toolCalls.push({ name: e.payload?.name ?? "", done: false });
+        break;
+      case "agent_tool_result":
+        if (nextOpen < toolCalls.length) toolCalls[nextOpen++].done = true;
+        break;
+      case "agent_token":
+        text += e.payload?.text ?? "";
+        break;
+      case "agent_completed":
+      case "score_ready":
+      case "run_completed":
+        findings = e.payload ?? null;
+        break;
+      case "agent_error":
+        error = e.payload?.message ?? "unknown error";
+        break;
+      default:
+        break;
+    }
+  }
+
+  // A completed agent has no in-flight tools; close any left open (e.g. the
+  // terminal submit_findings call, which never gets a matching result).
+  if (status === "done") for (const c of toolCalls) c.done = true;
+
+  // Interrupted-but-blameless child: surface the run-level failure message.
+  if (!error && status === "error") {
+    const globalErr = events.find((e) => e.type === "agent_error");
+    if (globalErr) error = globalErr.payload?.message ?? "run failed";
+  }
+
+  return { status, toolCalls, text, findings, error };
+}
