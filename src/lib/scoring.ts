@@ -3,7 +3,7 @@ import type { IcpConfig } from "./icp";
 export function computeFit(icpFit: any, icp: IcpConfig) {
   const w = icp.weights;
   const raw = icpFit.firmographic * w.firmographic + icpFit.role * w.role + icpFit.technographic * w.technographic;
-  const disqualified = (icpFit.conflicts ?? []).some((c: string) => icp.disqualifiers.some((d) => c.includes(d.split(" ")[0])));
+  const disqualified = icpFit.disqualified === true;
   return Math.round((disqualified ? Math.min(raw, 0.1) : raw) * 100);
 }
 

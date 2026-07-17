@@ -76,6 +76,7 @@ export const IcpFitFindings = z.object({
   firmographic: z.number(),
   role: z.number(),
   technographic: z.number(),
+  disqualified: z.boolean(),
   dimensions: z.array(
     z.object({
       dimension: z.string(),

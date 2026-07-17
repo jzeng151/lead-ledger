@@ -23,16 +23,16 @@ function mapArticles(data: any): NewsItem[] {
 // Keyless: try live GDELT only when explicitly enabled, else the news fixture.
 // Default (LEAD_LEDGER_LIVE_TOOLS unset) keeps the demo and tests deterministic.
 export async function gdeltNewsSearch({
-  company,
+  domain,
   sinceDays = 90,
 }: {
-  company: string;
+  domain: string;
   sinceDays?: number;
 }): Promise<{ events: NewsItem[] }> {
   if (process.env.LEAD_LEDGER_LIVE_TOOLS === "1") {
     try {
       const url =
-        `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(company)}` +
+        `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(domain)}` +
         `&mode=artlist&maxrecords=25&timespan=${sinceDays}d&format=json`;
       const res = await fetchWithTimeout(url);
       if (res.ok) {
@@ -43,5 +43,5 @@ export async function gdeltNewsSearch({
       // fall through to fixture
     }
   }
-  return { events: (loadFixture(company).news ?? []) as NewsItem[] };
+  return { events: (loadFixture(domain).news ?? []) as NewsItem[] };
 }

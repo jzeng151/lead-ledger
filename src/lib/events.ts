@@ -8,9 +8,13 @@ export class RunBus {
   constructor(public runId: string) {}
 
   emit(e: RunEvent): void {
-    db.insert(schema.runEvents)
-      .values({ runId: this.runId, agent: e.agent, type: e.type, payload: e.payload, ts: new Date() })
-      .run();
+    // Token deltas are high-volume and only useful live; persisting every one
+    // bloats run_events without helping replay, so skip the insert for them.
+    if (e.type !== "agent_token") {
+      db.insert(schema.runEvents)
+        .values({ runId: this.runId, agent: e.agent, type: e.type, payload: e.payload, ts: new Date() })
+        .run();
+    }
     this.ee.emit("event", e);
   }
 

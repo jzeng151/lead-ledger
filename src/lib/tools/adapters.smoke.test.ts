@@ -64,7 +64,7 @@ describe("enrichment adapters read fixtures on the mock path (no keys)", () => {
     expect(r.confidence).toBe(0);
   });
   it("gdeltNewsSearch -> news fixture", async () => {
-    const { events } = await gdeltNewsSearch({ company: DOMAIN });
+    const { events } = await gdeltNewsSearch({ domain: DOMAIN });
     expect(events.length).toBeGreaterThan(0);
     expect(events[0].type).toBe("funding");
   });

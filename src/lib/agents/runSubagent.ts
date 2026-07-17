@@ -49,6 +49,7 @@ export async function runSubagent(opts: RunSubagentOpts, client = anthropic) {
   const runner = client.beta.messages.toolRunner({
     model,
     max_tokens: 8000,
+    max_iterations: 12,
     output_config: { effort: effort as "low" | "medium" | "high" | "xhigh" | "max" },
     system,
     tools,

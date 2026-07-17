@@ -45,9 +45,9 @@ export const TOOLS = {
   }),
   gdelt_news_search: betaZodTool({
     name: "gdelt_news_search",
-    description: "Recent news/trigger events for a company.",
-    inputSchema: z.object({ company: z.string(), sinceDays: z.number().optional() }),
-    run: async (i) => JSON.stringify(await gdeltNewsSearch(i)),
+    description: "Recent news / trigger events for a company - pass the company DOMAIN.",
+    inputSchema: z.object({ domain: z.string(), sinceDays: z.number().optional() }),
+    run: async ({ domain, sinceDays }) => JSON.stringify(await gdeltNewsSearch({ domain, sinceDays })),
   }),
   web_search: betaZodTool({
     name: "web_search",

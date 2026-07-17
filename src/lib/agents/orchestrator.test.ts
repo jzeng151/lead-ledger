@@ -34,7 +34,7 @@ const fakeRunSub: OrchestratorDeps["runSub"] = (async (opts: { agentKey: string 
         contradictions: ["role mismatch"],
       };
     case "icpfit":
-      return { firmographic: 0.8, role: 0.3, technographic: 0.3, dimensions: [], conflicts: ["stale funding", "competitor present"] };
+      return { firmographic: 0.8, role: 0.3, technographic: 0.3, disqualified: false, dimensions: [], conflicts: ["stale funding", "competitor present"] };
     default:
       throw new Error(`unexpected agentKey ${opts.agentKey}`);
   }
@@ -75,7 +75,7 @@ describe("runContact", () => {
     // dossier: fit 50, engagement 0, priority 30, grade D.
     const expected = score(
       {
-        icpFit: { firmographic: 0.8, role: 0.3, technographic: 0.3, dimensions: [], conflicts: ["stale funding", "competitor present"] },
+        icpFit: { firmographic: 0.8, role: 0.3, technographic: 0.3, disqualified: false, dimensions: [], conflicts: ["stale funding", "competitor present"] },
         engagement: { topActions: [], recencyDays: 10, rawSignals: [], attributionUncertain: false },
         verification: { contradictions: ["role mismatch"], unsupported: 1 },
         identityUnverified: true,

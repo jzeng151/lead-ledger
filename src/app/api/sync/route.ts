@@ -18,14 +18,20 @@ export async function POST() {
     db.select({ contactId: scores.contactId }).from(scores).all().map((s) => s.contactId),
   );
 
-  let queued = 0;
-  for (const c of contactRows) {
-    if (scored.has(c.id)) continue;
-    // contactId keeps the runId unique even if two runs mint in the same ms.
-    const runId = `run-${c.id}-${Date.now()}`;
-    runContact(runId, c.id).catch(() => {});
-    queued++;
-  }
+  const pending = contactRows.filter((c) => !scored.has(c.id));
 
-  return Response.json({ synced, source, queued });
+  // Cap fan-out: run the unscored contacts in small sequential chunks so a sync
+  // never fires ~80 Anthropic runs at once. Detached from the response (like the
+  // prior fire-and-forget) so the POST returns immediately and the live view can
+  // stream progress; each chunk settles before the next starts.
+  const CONCURRENCY = 3;
+  void (async () => {
+    for (let i = 0; i < pending.length; i += CONCURRENCY) {
+      const chunk = pending.slice(i, i + CONCURRENCY);
+      // contactId keeps the runId unique even if two runs mint in the same ms.
+      await Promise.allSettled(chunk.map((c) => runContact(`run-${c.id}-${Date.now()}`, c.id)));
+    }
+  })();
+
+  return Response.json({ synced, source, queued: pending.length });
 }

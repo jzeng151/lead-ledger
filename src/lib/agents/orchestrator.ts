@@ -108,8 +108,11 @@ export async function runContact(
     const s = score({ icpFit, engagement: partials.engagement, verification: verif, identityUnverified: partials.contact?.identityUnverified }, icp);
 
     // Synthesis + citation-integrity gate. Refs whose claim was rejected by
-    // verification, or that point at no real dossier field, are stripped.
-    const synth = await deps.synthesize({ bus, dossierJson, input });
+    // verification, or that point at no real dossier field, are stripped. Build
+    // the synthesis input after scoring so the writer sees the full picture:
+    // partials plus the ICP-Fit read, verification verdicts, and computed score.
+    const synthesisJson = JSON.stringify({ ...partials, icpFit, verification, score: s, icp });
+    const synth = await deps.synthesize({ bus, dossierJson: synthesisJson, input });
     const rejected = new Set<string>(claims.filter(isRejected).map((c: any) => c.claimId));
     const gate = checkCitations(synth.citations, mergeSources(partials), rejected);
 
