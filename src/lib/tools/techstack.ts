@@ -32,24 +32,27 @@ function mockTech(domain: string): TechStack {
   };
 }
 
-// Keyless: fingerprint the live homepage, fall back to the tech fixture when nothing resolves.
+// Keyless: fingerprint the live homepage only when explicitly enabled, else the tech fixture.
+// Default (LEAD_LEDGER_LIVE_TOOLS unset) keeps the demo and tests deterministic.
 export async function detectTechStack(domain: string): Promise<TechStack> {
-  try {
-    const html = await fetchUrl(`https://${domain}`);
-    if (html) {
-      const found = FINGERPRINTS.filter(([re]) => re.test(html)).map(([, name]) => name);
-      if (found.length) {
-        return {
-          technologies: found,
-          competitorPresent: { value: false, confidence: 0.3, source: `https://${domain}` },
-          competitorEvidence: null,
-          complementSignals: [],
-          notes: null,
-        };
+  if (process.env.LEAD_LEDGER_LIVE_TOOLS === "1") {
+    try {
+      const html = await fetchUrl(`https://${domain}`);
+      if (html) {
+        const found = FINGERPRINTS.filter(([re]) => re.test(html)).map(([, name]) => name);
+        if (found.length) {
+          return {
+            technologies: found,
+            competitorPresent: { value: false, confidence: 0.3, source: `https://${domain}` },
+            competitorEvidence: null,
+            complementSignals: [],
+            notes: null,
+          };
+        }
       }
+    } catch {
+      // fall through to fixture
     }
-  } catch {
-    // fall through to fixture
   }
   return mockTech(domain);
 }

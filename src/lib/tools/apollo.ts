@@ -1,10 +1,10 @@
-import { pickImpl, loadFixture } from "./adapter";
+import { pickImpl, loadFixture, fetchWithTimeout } from "./adapter";
 
 async function realOrg(domain: string) {
-  const res = await fetch(`https://api.apollo.io/api/v1/organizations/enrich?domain=${domain}`, {
-    method: "POST",
-    headers: { "X-Api-Key": process.env.APOLLO_API_KEY!, "Content-Type": "application/json" },
-  });
+  const res = await fetchWithTimeout(
+    `https://api.apollo.io/api/v1/organizations/enrich?domain=${domain}`,
+    { headers: { "X-Api-Key": process.env.APOLLO_API_KEY!, "Content-Type": "application/json" } },
+  );
   if (!res.ok) throw new Error(`Apollo ${res.status}`);
   const o = (await res.json()).organization ?? {};
   const src = "apollo.io";
@@ -14,6 +14,9 @@ async function realOrg(domain: string) {
     hq: { value: o.city ?? null, confidence: 0.7, source: src },
     fundingTotal: { value: o.total_funding_printed ?? null, confidence: 0.7, source: src },
     latestRound: { value: o.latest_funding_stage ?? null, confidence: 0.7, source: src },
+    latestRoundDate: { value: o.latest_funding_round_date ?? null, confidence: 0.7, source: src },
+    revenueBand: { value: o.annual_revenue_printed ?? null, confidence: 0.6, source: src },
+    ownership: { value: o.publicly_traded_symbol ? "public" : null, confidence: 0.6, source: src },
   };
 }
 async function mockOrg(domain: string) {
@@ -34,7 +37,7 @@ async function mockOrg(domain: string) {
 type MatchArgs = { name: string; domain: string };
 
 async function realMatch({ name, domain }: MatchArgs) {
-  const res = await fetch("https://api.apollo.io/api/v1/people/match", {
+  const res = await fetchWithTimeout("https://api.apollo.io/api/v1/people/match", {
     method: "POST",
     headers: { "X-Api-Key": process.env.APOLLO_API_KEY!, "Content-Type": "application/json" },
     body: JSON.stringify({ name, domain }),

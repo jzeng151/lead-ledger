@@ -34,6 +34,20 @@ describe("enrichment adapters read fixtures on the mock path (no keys)", () => {
   it("pdlPersonEnrich -> person fixture", async () => {
     expect((await pdlPersonEnrich(DOMAIN)).title.value).toBe("VP Engineering");
   });
+  it("pdlCompanyEnrich exposes the full company field set (type + runtime)", async () => {
+    const c = await pdlCompanyEnrich(DOMAIN);
+    // Type-level check: the rich fields must be visible on the inferred return type,
+    // i.e. pickImpl must not narrow to the real impl's shape.
+    const revenue: string | null = c.revenueBand.value;
+    expect(revenue).toBe("$10M-$50M");
+    expect(c.latestRound.value).toBe("Series B");
+  });
+  it("pdlCompanyEnrich -> missing fixture resolves with null fields", async () => {
+    const c = await pdlCompanyEnrich("does-not-exist.example");
+    expect(c.industry.value).toBeNull();
+    expect(c.industry.confidence).toBe(0);
+    expect(c.revenueBand.value).toBeNull();
+  });
   it("apolloOrgEnrich -> company fixture", async () => {
     expect((await apolloOrgEnrich(DOMAIN)).industry.value).toBe("software");
   });
@@ -43,6 +57,11 @@ describe("enrichment adapters read fixtures on the mock path (no keys)", () => {
   });
   it("hunterVerifyEmail -> emailVerified fixture", async () => {
     expect((await hunterVerifyEmail("priya@northwind.dev")).verified.value).toBe(true);
+  });
+  it("hunterVerifyEmail -> email without a domain resolves without throwing", async () => {
+    const r = await hunterVerifyEmail("no-at-sign");
+    expect(r.verified.value).toBeNull();
+    expect(r.confidence).toBe(0);
   });
   it("gdeltNewsSearch -> news fixture", async () => {
     const { events } = await gdeltNewsSearch({ company: DOMAIN });

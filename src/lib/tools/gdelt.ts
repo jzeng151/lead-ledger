@@ -20,7 +20,8 @@ function mapArticles(data: any): NewsItem[] {
   }));
 }
 
-// Keyless: try live GDELT, fall back to the news fixture on failure or an empty result.
+// Keyless: try live GDELT only when explicitly enabled, else the news fixture.
+// Default (LEAD_LEDGER_LIVE_TOOLS unset) keeps the demo and tests deterministic.
 export async function gdeltNewsSearch({
   company,
   sinceDays = 90,
@@ -28,17 +29,19 @@ export async function gdeltNewsSearch({
   company: string;
   sinceDays?: number;
 }): Promise<{ events: NewsItem[] }> {
-  try {
-    const url =
-      `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(company)}` +
-      `&mode=artlist&maxrecords=25&timespan=${sinceDays}d&format=json`;
-    const res = await fetchWithTimeout(url);
-    if (res.ok) {
-      const events = mapArticles(await res.json());
-      if (events.length) return { events };
+  if (process.env.LEAD_LEDGER_LIVE_TOOLS === "1") {
+    try {
+      const url =
+        `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(company)}` +
+        `&mode=artlist&maxrecords=25&timespan=${sinceDays}d&format=json`;
+      const res = await fetchWithTimeout(url);
+      if (res.ok) {
+        const events = mapArticles(await res.json());
+        if (events.length) return { events };
+      }
+    } catch {
+      // fall through to fixture
     }
-  } catch {
-    // fall through to fixture
   }
   return { events: (loadFixture(company).news ?? []) as NewsItem[] };
 }

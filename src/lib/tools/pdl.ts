@@ -1,14 +1,23 @@
-import { pickImpl, loadFixture, type FieldVal } from "./adapter";
+import { pickImpl, loadFixture, fetchWithTimeout, type FieldVal } from "./adapter";
 
 async function realCompany(domain: string) {
-  const res = await fetch(`https://api.peopledatalabs.com/v5/company/enrich?website=${domain}`, {
-    headers: { "X-Api-Key": process.env.PDL_API_KEY! },
-  });
+  const res = await fetchWithTimeout(
+    `https://api.peopledatalabs.com/v5/company/enrich?website=${domain}`,
+    { headers: { "X-Api-Key": process.env.PDL_API_KEY! } },
+  );
   if (!res.ok) throw new Error(`PDL ${res.status}`);
   const d = await res.json();
+  const src = "peopledatalabs.com";
   return {
-    industry: { value: d.industry ?? null, confidence: 0.9, source: "peopledatalabs.com" },
-    headcount: { value: d.employee_count ?? null, confidence: 0.85, source: "peopledatalabs.com" },
+    industry: { value: d.industry ?? null, confidence: 0.9, source: src },
+    headcount: { value: d.employee_count ?? null, confidence: 0.85, source: src },
+    headcountGrowth90d: { value: d.employee_growth_rate_90d ?? null, confidence: 0.7, source: src },
+    revenueBand: { value: d.inferred_revenue ?? null, confidence: 0.6, source: src },
+    hq: { value: d.location?.name ?? null, confidence: 0.7, source: src },
+    ownership: { value: d.type ?? null, confidence: 0.7, source: src },
+    fundingTotal: { value: d.total_funding_raised ?? null, confidence: 0.7, source: src },
+    latestRound: { value: d.latest_funding_stage ?? null, confidence: 0.7, source: src },
+    latestRoundDate: { value: d.last_funding_date ?? null, confidence: 0.7, source: src },
   };
 }
 async function mockCompany(domain: string) {
@@ -28,9 +37,10 @@ async function mockCompany(domain: string) {
 }
 
 async function realPerson(domain: string) {
-  const res = await fetch(`https://api.peopledatalabs.com/v5/person/enrich?company=${domain}`, {
-    headers: { "X-Api-Key": process.env.PDL_API_KEY! },
-  });
+  const res = await fetchWithTimeout(
+    `https://api.peopledatalabs.com/v5/person/enrich?company=${domain}`,
+    { headers: { "X-Api-Key": process.env.PDL_API_KEY! } },
+  );
   if (!res.ok) throw new Error(`PDL ${res.status}`);
   const d = await res.json();
   const src = "peopledatalabs.com";

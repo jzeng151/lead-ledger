@@ -1,11 +1,11 @@
-import { pickImpl, loadFixture, type FieldVal } from "./adapter";
+import { pickImpl, loadFixture, fetchWithTimeout, type FieldVal } from "./adapter";
 
 function domainOf(email: string): string {
   return email.split("@")[1] ?? "";
 }
 
 async function realVerify(email: string): Promise<{ verified: FieldVal<boolean>; confidence: number }> {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://api.hunter.io/v2/email-verifier?email=${encodeURIComponent(email)}&api_key=${process.env.HUNTER_API_KEY}`,
   );
   if (!res.ok) throw new Error(`Hunter ${res.status}`);
