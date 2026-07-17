@@ -87,3 +87,11 @@ export const IcpFitFindings = z.object({
   bantMeddic: z.record(z.string(), z.string()).optional(),
   conflicts: z.array(z.string()),
 });
+
+// 8. Synthesis (Opus rep-facing verdict)
+export const SynthesisOutput = z.object({
+  rationale: z.string(),
+  nextStep: z.string(),
+  citations: z.array(z.object({ text: z.string(), ref: z.string() })),
+  reviewNote: z.string().optional(),
+});

@@ -14,6 +14,12 @@ export interface RunSubagentOpts {
   system: string;
   schema: z.ZodTypeAny;
   input: string;
+  // Optional overrides. Defaults reproduce the Sonnet subagent behavior; the
+  // orchestrator's synthesis step passes Opus config plus adaptive thinking.
+  model?: string;
+  effort?: string;
+  thinking?: unknown;
+  toolNames?: string[];
 }
 
 /**
@@ -24,21 +30,31 @@ export interface RunSubagentOpts {
  * The Anthropic client is injected so tests can pass a fake (no key required).
  */
 export async function runSubagent(opts: RunSubagentOpts, client = anthropic) {
-  const { bus, agentKey, system, schema, input } = opts;
-  const toolNames = TOOLSETS[agentKey] ?? [];
-  const tools = [...toolNames.map((n) => TOOLS[n]), submitTool(schema)];
+  const {
+    bus,
+    agentKey,
+    system,
+    schema,
+    input,
+    model = MODELS.subagent,
+    effort = EFFORT.subagent,
+    thinking,
+    toolNames = TOOLSETS[agentKey] ?? [],
+  } = opts;
+  const tools = [...toolNames.map((n) => TOOLS[n as keyof typeof TOOLS]), submitTool(schema)];
   let findings: unknown;
 
   bus.emit({ agent: agentKey, type: "agent_started", payload: {} });
 
   const runner = client.beta.messages.toolRunner({
-    model: MODELS.subagent,
+    model,
     max_tokens: 8000,
-    output_config: { effort: EFFORT.subagent },
+    output_config: { effort: effort as "low" | "medium" | "high" | "xhigh" | "max" },
     system,
     tools,
     messages: [{ role: "user", content: input }],
     stream: true,
+    ...(thinking !== undefined ? { thinking: thinking as any } : {}),
   });
 
   // The runner appends each executed turn's tool results as a user message to its
