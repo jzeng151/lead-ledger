@@ -32,9 +32,17 @@ export function LiveView({ runId, onDone }: { runId: string; onDone?: () => void
     return () => es.close();
   }, [runId]);
 
+  // Surface a run failure as a legible banner in addition to the log's red line.
+  const errorEvent = events.find((e) => e.type === "agent_error");
+
   return (
     <div className="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
       <PipelineGraph events={events} />
+      {errorEvent ? (
+        <div className="border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-xs text-red-300">
+          Run failed: {errorEvent.payload?.message ?? "unknown error"}
+        </div>
+      ) : null}
       <LogStream events={events} />
     </div>
   );

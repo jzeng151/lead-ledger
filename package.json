@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "seed": "tsx src/db/seed.ts",
+    "reseed": "tsx src/db/reseed.ts",
     "test": "vitest run",
     "db:push": "drizzle-kit push"
   },

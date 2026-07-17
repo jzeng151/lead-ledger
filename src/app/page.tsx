@@ -9,14 +9,22 @@ import { StatusTabs, TABS, tabMatches, type Tab } from "./components/StatusTabs"
 export default function Home() {
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [approving, setApproving] = useState(false);
   const [tab, setTab] = useState<Tab>("All");
 
   async function loadContacts() {
-    const res = await fetch("/api/contacts");
-    setRows(await res.json());
-    setLoading(false);
+    try {
+      const res = await fetch("/api/contacts");
+      if (!res.ok) throw new Error(`contacts request failed: ${res.status}`);
+      setRows(await res.json());
+      setLoadFailed(false);
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -66,8 +74,9 @@ export default function Home() {
         <header className="mb-8 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Lead Ledger</h1>
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              Tracepoint&apos;s sales queue - which contacts to work first, and why.
+            <p className="mt-1 max-w-xl text-sm text-zinc-600 dark:text-zinc-400">
+              Tracepoint sells an observability API to funded software startups. Lead Ledger scores each
+              HubSpot contact on fit and engagement so a rep works the best lead first, not the freshest.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-3">
@@ -100,6 +109,16 @@ export default function Home() {
           </div>
           {loading ? (
             <p className="px-4 py-12 text-center text-sm text-zinc-500">Loading contacts...</p>
+          ) : loadFailed ? (
+            <div className="px-4 py-12 text-center">
+              <p className="text-sm text-zinc-500">Could not load contacts.</p>
+              <button
+                onClick={loadContacts}
+                className="mt-3 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              >
+                Retry
+              </button>
+            </div>
           ) : (
             <RankedQueue rows={visible} />
           )}

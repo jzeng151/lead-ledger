@@ -18,16 +18,17 @@ export function LogStream({ events }: { events: LiveEvent[] }) {
   const lines = logLines(events);
   const boxRef = useRef<HTMLDivElement>(null);
 
-  // Keep the newest line in view as the log grows.
+  // Keep the newest content in view. Keyed on the event count, not line count, so
+  // the box also follows a single streamed line as tokens append to it.
   useEffect(() => {
     const el = boxRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [lines.length]);
+  }, [events.length]);
 
   return (
     <div ref={boxRef} className="h-80 overflow-y-auto bg-black px-4 py-3 font-mono text-xs leading-relaxed">
       {lines.length === 0 ? (
-        <div className="text-zinc-600">waiting for events...</div>
+        <div className="text-zinc-600">waiting for the run to start...</div>
       ) : (
         lines.map((l, i) => (
           <pre key={i} className={`whitespace-pre-wrap break-words ${markerClass(l.text)}`}>

@@ -44,18 +44,25 @@ export default function ContactDetailPage() {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/contacts/${id}`);
-    if (res.status === 404) {
-      setNotFound(true);
+    try {
+      const res = await fetch(`/api/contacts/${id}`);
+      if (res.status === 404) {
+        setNotFound(true);
+        return;
+      }
+      if (!res.ok) throw new Error(`contact request failed: ${res.status}`);
+      setDetail(await res.json());
+      setLoadFailed(false);
+    } catch {
+      setLoadFailed(true);
+    } finally {
       setLoading(false);
-      return;
     }
-    setDetail(await res.json());
-    setLoading(false);
   }, [id]);
 
   useEffect(() => {
@@ -83,6 +90,25 @@ export default function ContactDetailPage() {
       <div className="min-h-full bg-zinc-50 dark:bg-black">
         <div className="mx-auto max-w-4xl px-6 py-10">
           <p className="text-sm text-zinc-500">Loading contact...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadFailed && !detail) {
+    return (
+      <div className="min-h-full bg-zinc-50 dark:bg-black">
+        <div className="mx-auto max-w-4xl px-6 py-10">
+          <Link href="/" className="text-sm text-zinc-500 hover:underline">
+            &larr; Back to queue
+          </Link>
+          <p className="mt-6 text-sm text-zinc-600 dark:text-zinc-400">Could not load this contact.</p>
+          <button
+            onClick={load}
+            className="mt-3 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );

@@ -9,12 +9,13 @@ const GRADE_STYLES: Record<string, string> = {
   D: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300",
 };
 
+// Status chips: new grey, scored blue, needs review amber, approved/synced green.
 const STATUS_STYLES: Record<QueueRow["status"], string> = {
   new: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
-  scored: "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300",
+  scored: "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300",
   "needs review": "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
-  approved: "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300",
-  synced: "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900",
+  approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  synced: "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300",
 };
 
 function GradePill({ grade }: { grade: string | null }) {
