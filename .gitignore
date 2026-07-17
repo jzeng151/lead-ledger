@@ -1,0 +1,21 @@
+node_modules/
+/.next/
+/out/
+/build/
+next-env.d.ts
+
+# local database
+data.sqlite
+data.sqlite-*
+
+# env
+.env
+.env*.local
+
+# brainstorm artifacts (not part of the project)
+.superpowers/
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
