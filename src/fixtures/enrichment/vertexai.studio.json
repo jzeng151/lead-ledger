@@ -1,0 +1,7 @@
+{
+  "company": { "industry": "ai", "headcount": 60, "headcountGrowth90d": 0.18, "revenueBand": "$1M-$10M", "hq": "NYC", "ownership": "private", "fundingTotal": "$12M", "latestRound": "Series A", "latestRoundDate": "2025-11-10" },
+  "person": { "title": "Product Manager", "seniority": "Manager", "department": "Product", "tenureMonths": 14, "jobChange": false, "buyingRole": "user", "emailVerified": false },
+  "tech": { "technologies": ["React","Python","GCP","Vercel"], "competitorPresent": true, "competitorEvidence": "single job posting", "githubOrg": "vertexai", "statusPage": true, "recentIncident": false },
+  "news": [],
+  "engagement": { "topActions": ["pricing_page_view","demo_request"], "recencyDays": 5, "rawSignals": [{ "type": "pricing_page_view", "count": 3 }, { "type": "demo_request", "count": 1 }], "attributionUncertain": true }
+}

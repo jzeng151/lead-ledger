@@ -1,0 +1,7 @@
+{
+  "company": { "industry": "ai", "headcount": 40, "headcountGrowth90d": 0.12, "revenueBand": "$20M-$50M", "hq": "Boston", "ownership": "private", "fundingTotal": "$95M", "latestRound": "Series C", "latestRoundDate": "2026-05-22" },
+  "person": { "title": "CTO", "seniority": "C-Level", "department": "Engineering", "tenureMonths": 48, "jobChange": false, "buyingRole": "economic", "emailVerified": true },
+  "tech": { "technologies": ["React","C++","Python","GCP"], "competitorPresent": false, "competitorEvidence": null, "githubOrg": "pinnacle-robotics", "statusPage": false, "recentIncident": false },
+  "news": [{ "date": "2026-05-22", "type": "funding", "summary": "Series C $65M", "source": "https://example.com/pinnacle-series-c", "talkingPoint": "Series C in May - scaling fleet telemetry?", "fresh": true }],
+  "engagement": { "topActions": ["email_open"], "recencyDays": 47, "rawSignals": [{ "type": "email_open", "count": 1 }], "attributionUncertain": false }
+}

@@ -1,0 +1,7 @@
+{
+  "company": { "industry": "healthcare", "headcount": 200, "headcountGrowth90d": 0.0, "revenueBand": "$10M-$50M", "hq": "Cleveland", "ownership": "private", "fundingTotal": null, "latestRound": null, "latestRoundDate": null },
+  "person": { "title": "Practice Administrator", "seniority": "Manager", "department": "Operations", "tenureMonths": 60, "jobChange": false, "buyingRole": "none", "emailVerified": true },
+  "tech": { "technologies": ["WordPress"], "competitorPresent": false, "competitorEvidence": null, "githubOrg": null, "statusPage": false, "recentIncident": false },
+  "news": [],
+  "engagement": { "topActions": [], "recencyDays": 90, "rawSignals": [], "attributionUncertain": false }
+}
