@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { db, schema } from "../../db";
 import { DEFAULT_ICP } from "../icp";
+import { score } from "../scoring";
 import { runContact, type OrchestratorDeps } from "./orchestrator";
 
 const RUN_ID = "run-orch-test";
@@ -12,18 +13,19 @@ const CONTACT_ID = "c-test-orch";
 const f = (value: unknown, source: string) => ({ value, confidence: 0.8, source });
 
 // Canned subagent output keyed by agentKey. This replaces the real Tool Runner,
-// so no key or network is touched. company exposes a `funding` field so the
-// citation gate has a real source to (then) reject.
+// so no key or network is touched. company exposes `industry` (a ref that should
+// survive the gate) and `funding` (a ref verification will reject); news carries
+// one event so the `news_0` ref is citeable.
 const fakeRunSub: OrchestratorDeps["runSub"] = (async (opts: { agentKey: string }) => {
   switch (opts.agentKey) {
     case "company":
-      return { funding: f("Series B", "pdl_company_enrich"), headcount: f(120, "pdl_company_enrich") };
+      return { industry: f("software", "pdl_company_enrich"), funding: f("Series B", "pdl_company_enrich"), headcount: f(120, "pdl_company_enrich") };
     case "contact":
       return { title: f("VP Engineering", "pdl_person_enrich"), identityUnverified: true };
     case "tech":
       return { technologies: ["Datadog"], competitorPresent: f(true, "detect_tech_stack") };
     case "news":
-      return { events: [] };
+      return { events: [{ date: "2026-05-01", type: "funding", summary: "Raised Series B", source: "https://news.example/1", talkingPoint: "Congrats on the raise", fresh: true }] };
     case "engagement":
       return { topActions: [], recencyDays: 10, rawSignals: [], attributionUncertain: false };
     case "verification":
@@ -42,8 +44,10 @@ const fakeSynthesize: OrchestratorDeps["synthesize"] = async () => ({
   rationale: "Funded dev-tools shop, but funding claim is unverified.",
   nextStep: "Confirm the round before outreach.",
   citations: [
-    { text: "Series B", ref: "funding" },
-    { text: "nope", ref: "nonexistent" },
+    { text: "Series B", ref: "funding" }, // rejected by verification -> stripped
+    { text: "nope", ref: "nonexistent" }, // no dossier field -> stripped
+    { text: "a software company", ref: "industry" }, // sourced + not rejected -> kept
+    { text: "raised a round", ref: "news_0" }, // trigger event source -> kept
   ],
 });
 
@@ -66,11 +70,33 @@ describe("runContact", () => {
     expect(scoreRow!.needsReview).toBe(true);
     expect(scoreRow!.reviewReasons).toContain("verification contradiction");
 
-    // Citation gate: "nonexistent" has no dossier field and "funding" was
-    // rejected by verification, so both are stripped and kept is empty.
+    // Numeric scores must equal the real scorer on the same canned inputs, so a
+    // swapped score() argument in the orchestrator cannot pass silently. For this
+    // dossier: fit 50, engagement 0, priority 30, grade D.
+    const expected = score(
+      {
+        icpFit: { firmographic: 0.8, role: 0.3, technographic: 0.3, dimensions: [], conflicts: ["stale funding", "competitor present"] },
+        engagement: { topActions: [], recencyDays: 10, rawSignals: [], attributionUncertain: false },
+        verification: { contradictions: ["role mismatch"], unsupported: 1 },
+        identityUnverified: true,
+      },
+      DEFAULT_ICP,
+    );
+    expect(scoreRow!.fit).toBe(expected.fit);
+    expect(scoreRow!.engagement).toBe(expected.engagement);
+    expect(scoreRow!.priority).toBe(expected.priority);
+    expect(scoreRow!.grade).toBe(expected.grade);
+
+    // Citation gate: "nonexistent" (no dossier field) and "funding" (rejected by
+    // verification) are stripped; "industry" (sourced, not rejected) and "news_0"
+    // (a trigger event's source) survive.
     const kept = scoreRow!.citations as { text: string; ref: string }[];
-    expect(kept.some((c) => c.ref === "nonexistent")).toBe(false);
-    expect(kept).toHaveLength(0);
+    const keptRefs = kept.map((c) => c.ref);
+    expect(keptRefs).not.toContain("nonexistent");
+    expect(keptRefs).not.toContain("funding");
+    expect(keptRefs).toContain("industry");
+    expect(keptRefs).toContain("news_0");
+    expect(kept).toHaveLength(2);
 
     const wb = db.select().from(schema.writebacks).where(eq(schema.writebacks.contactId, CONTACT_ID)).get();
     expect(wb!.status).toBe("pending");

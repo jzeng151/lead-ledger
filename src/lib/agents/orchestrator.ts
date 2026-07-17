@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { db, schema } from "../../db";
-import { makeBus, dropBus } from "../runStore";
+import { makeBus, dropBus, getBus } from "../runStore";
 import { score } from "../scoring";
 import { checkCitations } from "../citation";
 import { DEFAULT_ICP, type IcpConfig } from "../icp";
@@ -36,9 +36,10 @@ export async function synthesize(args: { bus: EventSink; dossierJson: string; in
   })) as Synthesis;
 }
 
-// Flatten each partial's {value,confidence,source} fields into a field-name ->
-// {source} map so the citation gate can confirm every cited ref is backed by a
-// real dossier field.
+// Build the set of citeable refs so the citation gate can confirm every cited
+// ref is backed by a real dossier field. Top-level {value,confidence,source}
+// fields are keyed by field name (funding, title, ...); each news trigger event
+// is keyed news_<n> (0-indexed) mapping to that event's source.
 function mergeSources(partials: Record<string, any>): Record<string, { source?: string }> {
   const out: Record<string, { source?: string }> = {};
   for (const partial of Object.values(partials)) {
@@ -48,6 +49,12 @@ function mergeSources(partials: Record<string, any>): Record<string, { source?: 
         out[key] = { source: (val as { source?: string }).source };
       }
     }
+  }
+  const events = partials.news?.events;
+  if (Array.isArray(events)) {
+    events.forEach((e: any, i: number) => {
+      out[`news_${i}`] = { source: e?.source };
+    });
   }
   return out;
 }
@@ -68,7 +75,7 @@ export async function runContact(
   // the same runId, and the start-run route (Task 13) may have created it already.
   db.insert(runs)
     .values({ id: runId, contactId, status: "running", startedAt: new Date() })
-    .onConflictDoUpdate({ target: runs.id, set: { status: "running" } })
+    .onConflictDoUpdate({ target: runs.id, set: { status: "running", startedAt: new Date(), finishedAt: null } })
     .run();
   bus.emit({ agent: "orchestrator", type: "run_started", payload: { contactId } });
 
@@ -88,10 +95,14 @@ export async function runContact(
       deps.runSub({ bus, agentKey: ICPFIT.key, system: ICPFIT.system, schema: ICPFIT.schema, input: dossierJson }),
     ])) as [any, any];
 
-    // Deterministic score. Adapt verification to the scorer's shape.
+    // Deterministic score. Adapt verification to the scorer's shape. A claim the
+    // fact-checker marked unsupported or contradicted trips review and is stripped
+    // from the rationale.
+    const claims: any[] = verification.claims ?? [];
+    const isRejected = (c: any) => c.verdict === "unsupported" || c.verdict === "contradicted";
     const verif = {
       contradictions: verification.contradictions ?? [],
-      unsupported: (verification.claims ?? []).filter((c: any) => c.verdict === "unsupported").length,
+      unsupported: claims.filter(isRejected).length,
     };
     bus.emit({ agent: "scorer", type: "scoring_started", payload: {} });
     const s = score({ icpFit, engagement: partials.engagement, verification: verif, identityUnverified: partials.contact?.identityUnverified }, icp);
@@ -99,9 +110,7 @@ export async function runContact(
     // Synthesis + citation-integrity gate. Refs whose claim was rejected by
     // verification, or that point at no real dossier field, are stripped.
     const synth = await deps.synthesize({ bus, dossierJson, input });
-    const rejected = new Set<string>(
-      (verification.claims ?? []).filter((c: any) => c.verdict === "unsupported").map((c: any) => c.claimId),
-    );
+    const rejected = new Set<string>(claims.filter(isRejected).map((c: any) => c.claimId));
     const gate = checkCitations(synth.citations, mergeSources(partials), rejected);
 
     bus.emit({ agent: "scorer", type: "score_ready", payload: s });
@@ -151,7 +160,11 @@ export async function runContact(
     db.update(runs).set({ status: "error" }).where(eq(runs.id, runId)).run();
   } finally {
     // Keep the bus around briefly for late SSE subscribers, then reclaim it.
-    // unref so a hermetic run does not hold the process open for 30s.
-    (setTimeout(() => dropBus(runId), 30000) as any).unref?.();
+    // Only drop the bus this run created: a re-run may have installed a newer bus
+    // for the same runId, and this stale timer must not evict it. unref so a
+    // hermetic run does not hold the process open for 30s.
+    (setTimeout(() => {
+      if (getBus(runId) === bus) dropBus(runId);
+    }, 30000) as any).unref?.();
   }
 }

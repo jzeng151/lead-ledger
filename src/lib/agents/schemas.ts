@@ -93,5 +93,4 @@ export const SynthesisOutput = z.object({
   rationale: z.string(),
   nextStep: z.string(),
   citations: z.array(z.object({ text: z.string(), ref: z.string() })),
-  reviewNote: z.string().optional(),
 });
