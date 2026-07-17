@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { QueueRow } from "@/lib/queueModel";
+import { isBatchApprovable, type QueueRow } from "@/lib/queueModel";
 import { RankedQueue } from "./components/RankedQueue";
 import { StatusTabs, TABS, tabMatches, type Tab } from "./components/StatusTabs";
 
@@ -40,12 +40,13 @@ export default function Home() {
     }
   }
 
-  // Batch-approve clear A/B leads. Needs-review rows are filtered out client-side
-  // (status !== "needs review") and 409-guarded server-side; any 409 is ignored.
+  // Batch-approve every scored lead that is not flagged for review, regardless of
+  // grade (see isBatchApprovable). The server also 409-guards needs-review as a
+  // backstop; any such 409 is ignored below.
   async function handleBatchApprove() {
     setApproving(true);
     try {
-      const targets = rows.filter((r) => (r.grade === "A" || r.grade === "B") && r.status === "scored");
+      const targets = rows.filter(isBatchApprovable);
       await Promise.all(
         targets.map((r) =>
           fetch(`/api/writeback/${r.contactId}`, {
@@ -79,7 +80,7 @@ export default function Home() {
         </div>
         <div className="flex shrink-0 items-center gap-2.5">
           <button onClick={handleBatchApprove} disabled={approving} className="btn btn-ghost">
-            {approving ? "Approving..." : "Approve clear A/B"}
+            {approving ? "Approving..." : "Approve scored"}
           </button>
           <button onClick={handleSync} disabled={syncing} className="btn btn-primary">
             {syncing ? "Syncing..." : "Sync contacts"}

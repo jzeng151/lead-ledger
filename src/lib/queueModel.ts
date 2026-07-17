@@ -61,3 +61,14 @@ export function buildQueue(
     return b.priority - a.priority; // highest priority first
   });
 }
+
+/**
+ * Whether a row is eligible for the dashboard's batch "Approve scored" action.
+ * Eligible = has a score and is not flagged for review, at any grade: a low
+ * grade is still a valid human-reviewed verdict worth writing back. The "scored"
+ * status already excludes needs-review, new, and already approved/synced rows,
+ * so grade never enters into it. The server 409-guards needs-review as a backstop.
+ */
+export function isBatchApprovable(row: QueueRow): boolean {
+  return row.status === "scored";
+}

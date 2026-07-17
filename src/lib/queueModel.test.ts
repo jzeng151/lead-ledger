@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildQueue } from "./queueModel";
+import { buildQueue, isBatchApprovable, type QueueRow } from "./queueModel";
 
 describe("buildQueue", () => {
   it("ranks by priority desc, puts new contacts last, and derives each status", () => {
@@ -55,6 +55,31 @@ describe("buildQueue", () => {
       { c1: { status: "approved" } },
     );
     expect(queue[0].status).toBe("approved");
+  });
+
+  it("batch-approves scored leads at any grade, but never needs-review or non-scored rows", () => {
+    const row = (status: QueueRow["status"], grade: string | null): QueueRow => ({
+      contactId: "c",
+      name: "C",
+      company: "Co",
+      priority: 10,
+      grade,
+      status,
+    });
+
+    // Any grade is eligible while the status is "scored" - a low grade is still a
+    // reviewed verdict worth writing back.
+    expect(isBatchApprovable(row("scored", "A"))).toBe(true);
+    expect(isBatchApprovable(row("scored", "D"))).toBe(true);
+
+    // Needs-review is never batch-approved, regardless of grade.
+    expect(isBatchApprovable(row("needs review", "A"))).toBe(false);
+    expect(isBatchApprovable(row("needs review", "D"))).toBe(false);
+
+    // Nothing else is auto-approved either.
+    expect(isBatchApprovable(row("new", null))).toBe(false);
+    expect(isBatchApprovable(row("approved", "B"))).toBe(false);
+    expect(isBatchApprovable(row("synced", "B"))).toBe(false);
   });
 
   it("keeps input order for contacts that tie on priority (stable)", () => {
