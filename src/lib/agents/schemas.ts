@@ -5,88 +5,100 @@ import { z } from "zod";
 export const field = <T extends z.ZodTypeAny>(t: T) =>
   z.object({ value: t.nullable(), confidence: z.number(), source: z.string() });
 
+// Retrieval schemas are deliberately lenient: a subagent that omits a field
+// (for example on an obviously out-of-ICP company where the model shortcuts)
+// must not throw and abort the whole contact run. Missing fields become
+// undefined / empty; the orchestrator and deterministic scorer tolerate that.
+
 // 1. Company / Firmographics
 export const CompanyFindings = z.object({
-  industry: field(z.string()),
-  headcount: field(z.number()),
-  revenueBand: field(z.string()),
-  funding: field(z.string()),
-  latestRoundDate: field(z.string()),
-  headcountGrowth90d: field(z.number()),
+  industry: field(z.string()).optional(),
+  headcount: field(z.number()).optional(),
+  revenueBand: field(z.string()).optional(),
+  funding: field(z.string()).optional(),
+  latestRoundDate: field(z.string()).optional(),
+  headcountGrowth90d: field(z.number()).optional(),
 });
 
 // 2. Contact / Profile
 export const ContactFindings = z.object({
-  title: field(z.string()),
-  seniority: field(z.string()),
-  department: field(z.string()),
-  tenureMonths: field(z.number()),
-  jobChange: field(z.boolean()),
-  buyingRole: field(z.string()),
-  emailVerified: field(z.boolean()),
-  identityUnverified: z.boolean(),
+  title: field(z.string()).optional(),
+  seniority: field(z.string()).optional(),
+  department: field(z.string()).optional(),
+  tenureMonths: field(z.number()).optional(),
+  jobChange: field(z.boolean()).optional(),
+  buyingRole: field(z.string()).optional(),
+  emailVerified: field(z.boolean()).optional(),
+  identityUnverified: z.boolean().optional().default(false),
 });
 
 // 3. Tech Stack
 export const TechFindings = z.object({
-  technologies: z.array(z.string()),
-  competitorPresent: field(z.boolean()),
-  competitorEvidence: field(z.string()),
-  complementSignals: z.array(z.string()),
-  notes: z.string(),
+  technologies: z.array(z.string()).default([]),
+  competitorPresent: field(z.boolean()).optional(),
+  competitorEvidence: field(z.string()).optional(),
+  complementSignals: z.array(z.string()).default([]),
+  notes: z.string().optional().default(""),
 });
 
 // 4. News / Trigger Signals
 export const NewsFindings = z.object({
-  events: z.array(
-    z.object({
-      date: z.string(),
-      type: z.string(),
-      summary: z.string(),
-      source: z.string(),
-      talkingPoint: z.string(),
-      fresh: z.boolean(),
-    }),
-  ),
+  events: z
+    .array(
+      z.object({
+        date: z.string().optional(),
+        type: z.string().optional(),
+        summary: z.string().optional(),
+        source: z.string().optional(),
+        talkingPoint: z.string().optional(),
+        fresh: z.boolean().optional(),
+      }),
+    )
+    .default([]),
 });
 
 // 5. Engagement
 export const EngagementFindings = z.object({
-  topActions: z.array(z.string()),
-  recencyDays: z.number(),
-  rawSignals: z.array(z.any()),
-  attributionUncertain: z.boolean(),
+  topActions: z.array(z.string()).default([]),
+  recencyDays: z.number().nullable().optional(),
+  rawSignals: z.array(z.any()).default([]),
+  attributionUncertain: z.boolean().optional().default(false),
 });
 
 // 6. Verification (adversarial fact-check)
 export const VerificationFindings = z.object({
-  claims: z.array(
-    z.object({
-      claimId: z.string(),
-      verdict: z.enum(["supported", "unsupported", "contradicted", "uncertain"]),
-      adjustedConfidence: z.number(),
-      note: z.string(),
-    }),
-  ),
-  contradictions: z.array(z.string()),
+  claims: z
+    .array(
+      z.object({
+        claimId: z.string(),
+        verdict: z.enum(["supported", "unsupported", "contradicted", "uncertain"]),
+        adjustedConfidence: z.number().optional(),
+        note: z.string().optional(),
+      }),
+    )
+    .default([]),
+  contradictions: z.array(z.string()).default([]),
 });
 
-// 7. ICP-Fit
+// 7. ICP-Fit. The three axis scores feed the deterministic scorer, so they
+// default to a neutral 0.5 if a model omits them rather than crashing the run.
 export const IcpFitFindings = z.object({
-  firmographic: z.number(),
-  role: z.number(),
-  technographic: z.number(),
-  disqualified: z.boolean(),
-  dimensions: z.array(
-    z.object({
-      dimension: z.string(),
-      assessment: z.number(),
-      justification: z.string(),
-      confidence: z.number(),
-    }),
-  ),
+  firmographic: z.number().optional().default(0.5),
+  role: z.number().optional().default(0.5),
+  technographic: z.number().optional().default(0.5),
+  disqualified: z.boolean().optional().default(false),
+  dimensions: z
+    .array(
+      z.object({
+        dimension: z.string().optional(),
+        assessment: z.number().optional(),
+        justification: z.string().optional(),
+        confidence: z.number().optional(),
+      }),
+    )
+    .default([]),
   bantMeddic: z.record(z.string(), z.string()).optional(),
-  conflicts: z.array(z.string()),
+  conflicts: z.array(z.string()).default([]),
 });
 
 // 8. Synthesis (Opus rep-facing verdict). Fields are lenient: synthesis is the

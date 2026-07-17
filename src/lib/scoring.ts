@@ -10,7 +10,7 @@ export function computeFit(icpFit: any, icp: IcpConfig) {
 export function computeEngagement(e: any, icp: IcpConfig) {
   const weightOf = (a: string) => (a === "demo_request" ? 30 : a === "pricing_page_view" ? 20 : 8);
   const base = Math.min(100, (e.topActions ?? []).reduce((s: number, a: string) => s + weightOf(a), 0));
-  const months = e.recencyDays / 30;
+  const months = (e.recencyDays ?? 999) / 30;
   const decay = Math.pow(1 - icp.engagementDecayPerMonth, months);
   return Math.round(base * decay);
 }

@@ -103,6 +103,10 @@ export const TOOLSETS: Record<string, (keyof typeof TOOLS)[]> = {
   tech: ["fetch_url", "detect_tech_stack", "github_org_lookup"],
   news: ["gdelt_news_search", "web_search"],
   engagement: ["hubspot_get_contact", "hubspot_get_engagements"],
-  verification: ["fetch_url"],
+  // Verification may re-fetch a cited source only when live tools are enabled.
+  // In fixture/demo mode the seed URLs are fictional and return nothing, so a
+  // live re-fetch would wrongly mark every claim unverifiable; there it judges
+  // from the provided claims and cross-source consistency instead.
+  verification: process.env.LEAD_LEDGER_LIVE_TOOLS === "1" ? ["fetch_url"] : [],
   icpfit: [],
 };

@@ -63,6 +63,14 @@ function mergeSources(partials: Record<string, any>): Record<string, { source?: 
   return out;
 }
 
+// Guard against a synthesis model that leaks XML-ish tags or a citations JSON
+// blob into the rationale prose: keep only the text up to the first stray tag.
+function sanitizeRationale(r: string | null | undefined): string | null {
+  if (!r) return null;
+  const clean = r.split(/<\/?(?:rationale|parameter|citations)\b/i)[0].trim();
+  return clean || null;
+}
+
 export async function runContact(
   runId: string,
   contactId: string,
@@ -126,6 +134,7 @@ export async function runContact(
     }
     const rejected = new Set<string>(claims.filter(isRejected).map((c: any) => c.claimId));
     const gate = checkCitations(synth.citations ?? [], mergeSources(partials), rejected);
+    const cleanRationale = sanitizeRationale(synth.rationale);
 
     bus.emit({ agent: "scorer", type: "score_ready", payload: s });
 
@@ -144,7 +153,7 @@ export async function runContact(
       grade: s.grade,
       needsReview: s.needsReview,
       reviewReasons: s.reviewReasons,
-      rationale: synth.rationale ?? null,
+      rationale: cleanRationale,
       nextStep: synth.nextStep ?? null,
       citations: gate.kept,
     };
@@ -155,7 +164,7 @@ export async function runContact(
 
     const writeback = {
       properties: { lead_priority_score: s.priority, lead_grade: s.grade },
-      note: synth.rationale ?? "",
+      note: cleanRationale ?? "",
     };
     db.insert(writebacks)
       .values({ contactId, status: "pending", payload: writeback })
