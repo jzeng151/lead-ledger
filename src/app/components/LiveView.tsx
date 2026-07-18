@@ -38,6 +38,11 @@ export function LiveView({ runId, onDone }: { runId: string; onDone?: () => void
     userPickedRef.current = false;
 
     const es = new EventSource(`/api/runs/${runId}/stream`);
+    // The stream route replays the run's whole persisted history on every
+    // connection, so a reconnect would append a second copy of everything:
+    // duplicate starts and tool calls in the tree, and a replayed terminal frame
+    // firing onDone again. Clearing here makes each (re)connection authoritative.
+    es.onopen = () => setEvents([]);
     es.onmessage = (m) => {
       const ev: LiveEvent = JSON.parse(m.data);
       setEvents((prev) => [...prev, ev]);
