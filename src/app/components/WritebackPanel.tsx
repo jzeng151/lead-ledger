@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type WritebackScore = {
   priority: number;
@@ -30,6 +30,17 @@ export function WritebackPanel({
   );
   const [skipped, setSkipped] = useState(writebackStatus === "skipped");
   const [error, setError] = useState<string | null>(null);
+
+  // Follow the persisted status while mounted. A re-run resets the row to
+  // pending; without this the panel would keep showing Written/Skipped from the
+  // previous score and hide approval for the new one until a full page reload.
+  useEffect(() => {
+    // Keep a just-approved result as-is (it knows whether the write was a dry
+    // run); only fill one in when the status arrives from the server.
+    setResult((prev) => (writebackStatus === "written" ? (prev ?? { dryRun: null }) : null));
+    setSkipped(writebackStatus === "skipped");
+    setError(null);
+  }, [writebackStatus]);
 
   // Skip must be persisted, not local-only: otherwise the decision vanishes on
   // refresh and the contact keeps resurfacing as pending work.
