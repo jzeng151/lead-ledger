@@ -1,7 +1,7 @@
 import { and, eq, lt, ne, or } from "drizzle-orm";
 
 import { db, schema } from "@/db";
-import { applyWriteback } from "@/lib/hubspot/writeback";
+import { applyWriteback, buildPayload, type WritebackPayload } from "@/lib/hubspot/writeback";
 import { activeRunForContact } from "@/lib/runs";
 import { rejectCrossSite } from "@/lib/sameOrigin";
 
@@ -132,14 +132,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
     if (body.batch === true && prior?.status === "skipped")
       return Response.json({ error: "skipped by a human" }, { status: 409 });
 
-    // Idempotency: if this exact score was already written, return the prior
-    // result instead of posting a second HubSpot note for the same verdict. A
-    // re-run that changes the score is still allowed through.
-    const priorPayload = prior?.payload as { properties?: { lead_priority_score?: number; lead_grade?: string } } | null;
+    // Idempotency: if this exact verdict was already written, return the prior
+    // result instead of posting a second HubSpot note for it. The whole payload
+    // has to match, not just the two properties: a re-run can keep the priority
+    // and grade while changing the rationale, and treating that as already
+    // written left HubSpot holding the old note with no way to update it.
+    const priorPayload = prior?.payload as WritebackPayload | null;
+    const current = buildPayload(score);
     if (
       prior?.status === "written" &&
-      priorPayload?.properties?.lead_priority_score === score.priority &&
-      priorPayload?.properties?.lead_grade === score.grade
+      priorPayload?.properties?.lead_priority_score === current.properties.lead_priority_score &&
+      priorPayload?.properties?.lead_grade === current.properties.lead_grade &&
+      (priorPayload?.note ?? "") === current.note
     ) {
       return Response.json({ status: "written", payload: priorPayload, dryRun: false, alreadyWritten: true });
     }

@@ -6,7 +6,9 @@ import { POST } from "./route";
 
 // A real HubSpot write awaits the network. The dry-run path returns instantly,
 // which serializes the requests and hides the overlap this guards against.
-vi.mock("@/lib/hubspot/writeback", () => ({
+vi.mock("@/lib/hubspot/writeback", async (importOriginal) => ({
+  // Keep the real buildPayload: the route uses it to compare verdicts.
+  ...(await importOriginal<typeof import("@/lib/hubspot/writeback")>()),
   applyWriteback: vi.fn(async () => {
     await new Promise((r) => setTimeout(r, 25));
     return { status: "written", dryRun: true };
