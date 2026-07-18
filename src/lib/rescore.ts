@@ -18,13 +18,17 @@ type WritebackPayload = { properties?: { lead_priority_score?: number; lead_grad
  * would otherwise treat it as synced and hide approval. A skip is left alone:
  * that is a human decision, not a stale score.
  */
-function syncWriteback(contactId: string, priority: number, grade: string) {
+function syncWriteback(contactId: string, priority: number, grade: string, needsReview: boolean) {
   const wb = db.select().from(writebacks).where(eq(writebacks.contactId, contactId)).get();
   if (!wb || wb.status === "skipped") return;
 
   const prior = (wb.payload ?? {}) as WritebackPayload;
-  const unchanged = prior.properties?.lead_priority_score === priority && prior.properties?.lead_grade === grade;
-  if (unchanged) return;
+  const sameValues = prior.properties?.lead_priority_score === priority && prior.properties?.lead_grade === grade;
+  // A written contact that now needs review has to be reopened even when its
+  // numbers did not move: the queue gives "written" precedence over needsReview,
+  // so it would otherwise stay hidden from the Needs review tab with the panel
+  // still showing Written.
+  if (sameValues && !(wb.status === "written" && needsReview)) return;
 
   const payload: WritebackPayload = { properties: { lead_priority_score: priority, lead_grade: grade }, note: prior.note ?? "" };
   db.update(writebacks)
@@ -77,7 +81,7 @@ export function rescoreAll(icp: IcpConfig): number {
   const startedAt = new Map(
     db.select({ id: runs.id, startedAt: runs.startedAt }).from(runs).all().map((r) => [r.id, r.startedAt?.getTime() ?? 0]),
   );
-  const newest = new Map<string, { at: number; priority: number; grade: string }>();
+  const newest = new Map<string, { at: number; priority: number; grade: string; needsReview: boolean }>();
 
   let updated = 0;
   for (const d of db.select().from(dossiers).all()) {
@@ -105,10 +109,11 @@ export function rescoreAll(icp: IcpConfig): number {
 
     const at = startedAt.get(d.runId) ?? 0;
     const seen = newest.get(existing.contactId);
-    if (!seen || at >= seen.at) newest.set(existing.contactId, { at, priority: s.priority, grade: s.grade });
+    if (!seen || at >= seen.at)
+      newest.set(existing.contactId, { at, priority: s.priority, grade: s.grade, needsReview: reviewReasons.length > 0 });
     updated++;
   }
 
-  for (const [contactId, v] of newest) syncWriteback(contactId, v.priority, v.grade);
+  for (const [contactId, v] of newest) syncWriteback(contactId, v.priority, v.grade, v.needsReview);
   return updated;
 }

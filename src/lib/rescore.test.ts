@@ -107,3 +107,32 @@ describe("rescoreAll write-back sync", () => {
     expect(db.select().from(writebacks).where(eq(writebacks.contactId, "wb-skip")).get()?.status).toBe("skipped");
   });
 });
+
+describe("rescoreAll: review status alone reopens a written row", () => {
+  it("reopens when the values hold but the contact now needs review", () => {
+    const now = new Date();
+    db.insert(runs).values({ id: "wb-rev-run", contactId: "wb-rev", status: "scored", startedAt: now }).run();
+    db.insert(dossiers).values({ runId: "wb-rev-run", ...dossier }).run();
+    db.insert(scores)
+      .values({ runId: "wb-rev-run", contactId: "wb-rev", fit: 90, engagement: 0, timing: 80, priority: 100, grade: "A", needsReview: false, reviewReasons: [], citations: [] })
+      .run();
+    db.insert(writebacks)
+      .values({
+        contactId: "wb-rev",
+        status: "written",
+        payload: { properties: { lead_priority_score: 100, lead_grade: "A" }, note: "n" },
+        approvedAt: now,
+        writtenAt: now,
+      })
+      .run();
+
+    // Move the review band over this priority: same numbers, but it now needs a
+    // human look. The queue ranks "written" above needsReview, so leaving the row
+    // written would hide it from the Needs review tab entirely.
+    rescoreAll({ ...DEFAULT_ICP, reviewBand: [95, 100] });
+
+    const wb = db.select().from(writebacks).where(eq(writebacks.contactId, "wb-rev")).get()!;
+    expect(wb.status).toBe("pending");
+    expect((wb.payload as any).properties.lead_priority_score).toBe(100); // values unchanged
+  });
+});
