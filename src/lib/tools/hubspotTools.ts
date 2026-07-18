@@ -66,17 +66,23 @@ async function mockContact(id: string): Promise<HubspotContact> {
 // not fatal: engagement is one input among several, and a contact with no
 // readable activity is a normal state, not a broken run.
 async function realEngagements(contactId: string): Promise<Engagement> {
-  const empty: Engagement = { topActions: [], recencyDays: null, rawSignals: [], attributionUncertain: true };
+  // attributionUncertain means "there is activity here that cannot be tied to
+  // the corporate domain", which is a review reason. An empty timeline is an
+  // ordinary state, not an uncertainty, and flagging it kept normal contacts out
+  // of batch approval for having no activity at all.
+  const empty: Engagement = { topActions: [], recencyDays: null, rawSignals: [], attributionUncertain: false };
   const res = await fetchWithTimeout(
     `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}/associations/engagements`,
     { headers: { Authorization: `Bearer ${process.env.HUBSPOT_TOKEN}` } },
   ).catch(() => null);
   if (!res || !res.ok) return empty;
   const results = (await res.json().catch(() => ({}))).results ?? [];
+  const rows = Array.isArray(results) ? results : [];
+  if (!rows.length) return empty;
   return {
     topActions: [],
     recencyDays: null,
-    rawSignals: (Array.isArray(results) ? results : []).map((r: any) => ({
+    rawSignals: rows.map((r: any) => ({
       type: r.type ?? "engagement",
       count: 1,
     })),
