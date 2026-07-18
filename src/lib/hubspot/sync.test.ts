@@ -1,8 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { db, schema } from "../../db";
-import { dedupeByEmail, normalizeDomain } from "./sync";
+import { dedupeByEmail, normalizeDomain, syncContacts } from "./sync";
 
 describe("normalizeDomain", () => {
   it("reduces HubSpot's free-form website values to a bare host", () => {
@@ -54,5 +54,40 @@ describe("dedupeByEmail", () => {
     // The retained contact and the unrelated one survive.
     expect(db.select().from(contacts).where(eq(contacts.id, "dupe-real")).get()?.id).toBe("dupe-real");
     expect(db.select().from(contacts).where(eq(contacts.id, "unrelated")).get()?.id).toBe("unrelated");
+  });
+});
+
+describe("syncContacts paging", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("follows paging.next.after so contacts past the first page are not dropped", async () => {
+    vi.stubEnv("HUBSPOT_TOKEN", "test-token");
+    const seen: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        const u = new URL(String(url));
+        seen.push(u.searchParams.get("after") ?? "page1");
+        return u.searchParams.get("after")
+          ? Response.json({ results: [{ id: "pg-3", properties: { firstname: "Cy", website: "https://third.dev" } }] })
+          : Response.json({
+              results: [
+                { id: "pg-1", properties: { firstname: "Ana" } },
+                { id: "pg-2", properties: { firstname: "Bo" } },
+              ],
+              paging: { next: { after: "100" } },
+            });
+      }),
+    );
+
+    const { synced, source } = await syncContacts();
+
+    expect(source).toBe("hubspot");
+    expect(synced).toBe(3); // would have been 2 when only the first page was read
+    expect(seen).toEqual(["page1", "100"]);
+    expect(db.select().from(contacts).where(eq(contacts.id, "pg-3")).get()?.companyDomain).toBe("third.dev");
   });
 });

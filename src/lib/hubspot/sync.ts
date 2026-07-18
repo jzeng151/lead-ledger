@@ -71,13 +71,27 @@ export async function syncContacts(): Promise<{ synced: number; source: "hubspot
   const token = process.env.HUBSPOT_TOKEN;
   if (!token) return { synced: 0, source: "fixtures" };
 
-  const res = await fetch(
-    "https://api.hubapi.com/crm/v3/objects/contacts?properties=firstname,lastname,email,jobtitle,company,website&limit=100",
-    { headers: { Authorization: `Bearer ${token}` } },
-  );
-  if (!res.ok) throw new Error(`HubSpot ${res.status}`);
+  // Page through the portal. HubSpot caps a page at 100, so a single fetch would
+  // silently drop every contact past the first 100 even though the Sync button
+  // presents this as a full sync. MAX_PAGES bounds a runaway cursor.
+  const MAX_PAGES = 50;
+  const results: HubspotResult[] = [];
+  let after: string | undefined;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const url = new URL("https://api.hubapi.com/crm/v3/objects/contacts");
+    url.searchParams.set("properties", "firstname,lastname,email,jobtitle,company,website");
+    url.searchParams.set("limit", "100");
+    if (after) url.searchParams.set("after", after);
 
-  const results: HubspotResult[] = (await res.json()).results ?? [];
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`HubSpot ${res.status}`);
+
+    const body = await res.json();
+    results.push(...((body.results ?? []) as HubspotResult[]));
+    after = body.paging?.next?.after;
+    if (!after) break;
+  }
+
   const now = new Date();
   for (const r of results) {
     const p = r.properties ?? {};
