@@ -95,11 +95,20 @@ export async function runContact(
   try {
     bus.emit({ agent: "orchestrator", type: "plan_ready", payload: { agents: FANOUT.map((a) => a.key) } });
 
-    // 1-5: retrieval subagents in parallel.
-    const entries = await Promise.all(
+    // 1-5: retrieval subagents in parallel. allSettled, not all: a rejecting
+    // Promise.all would return while the siblings were still streaming, so the
+    // run was marked failed and its stream closed while those agents kept
+    // emitting events. Replay then showed agent output after the terminal error.
+    // The siblings are not cancelled (the Tool Runner call is already in flight),
+    // so their calls still complete; this only makes the run's end honest.
+    const settled = await Promise.allSettled(
       FANOUT.map(async (a) => [a.key, await deps.runSub({ bus, agentKey: a.key, system: a.system, schema: a.schema, input })] as const),
     );
-    const partials: Record<string, any> = Object.fromEntries(entries);
+    const failed = settled.find((r) => r.status === "rejected");
+    if (failed) throw (failed as PromiseRejectedResult).reason;
+    const partials: Record<string, any> = Object.fromEntries(
+      settled.map((r) => (r as PromiseFulfilledResult<readonly [string, unknown]>).value),
+    );
 
     // Verification and ICP-fit judge the raw partials in parallel.
     const dossierJson = JSON.stringify({ ...partials, icp });

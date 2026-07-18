@@ -116,3 +116,41 @@ describe("runContact", () => {
     expect(types).toContain("run_completed");
   });
 });
+
+describe("fan-out failure", () => {
+  it("lets the slower siblings finish before the run is marked failed", async () => {
+    const RUN = "run-orch-fanout-fail";
+    const CONTACT = "c-orch-fanout-fail";
+    db.insert(schema.contacts)
+      .values({ id: CONTACT, name: "Fanout Fail", companyDomain: "northwind.dev", props: {}, syncedAt: new Date() })
+      .onConflictDoNothing()
+      .run();
+
+    // company rejects immediately; contact resolves on a later tick. With
+    // Promise.all the run recorded its terminal error while contact was still
+    // going, and contact's completion landed after it.
+    const deps: OrchestratorDeps = {
+      runSub: (async (opts: { agentKey: string; bus: { emit: (e: unknown) => void } }) => {
+        if (opts.agentKey === "company") throw new Error("company blew up");
+        await new Promise((r) => setTimeout(r, 20));
+        opts.bus.emit({ agent: opts.agentKey, type: "agent_completed", payload: {} });
+        return {};
+      }) as unknown as OrchestratorDeps["runSub"],
+      synthesize: fakeSynthesize,
+    };
+
+    await runContact(RUN, CONTACT, deps);
+
+    const events = db
+      .select()
+      .from(schema.runEvents)
+      .where(eq(schema.runEvents.runId, RUN))
+      .all()
+      .map((e) => `${e.agent}:${e.type}`);
+    const terminal = events.lastIndexOf("orchestrator:agent_error");
+    expect(terminal).toBeGreaterThan(-1);
+    expect(events.indexOf("contact:agent_completed")).toBeGreaterThan(-1);
+    expect(events.indexOf("contact:agent_completed")).toBeLessThan(terminal);
+    expect(db.select().from(schema.runs).where(eq(schema.runs.id, RUN)).get()?.status).toBe("error");
+  });
+});
