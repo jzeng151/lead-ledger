@@ -61,7 +61,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   let newest = -Infinity;
   for (const r of db.select({ id: runs.id, startedAt: runs.startedAt }).from(runs).where(eq(runs.contactId, id)).all()) {
     const t = r.startedAt ? r.startedAt.getTime() : 0;
-    if (t >= newest) {
+    // Same second-resolution tie-break as the score selection above, or the page
+    // can replay the previous run's trace instead of the one now in flight.
+    if (t > newest || (t === newest && r.id > (latestRunId ?? ""))) {
       newest = t;
       latestRunId = r.id;
     }
