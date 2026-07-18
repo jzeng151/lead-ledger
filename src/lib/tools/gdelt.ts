@@ -9,15 +9,35 @@ export type NewsItem = {
   fresh?: boolean;
 };
 
-function mapArticles(data: any): NewsItem[] {
+// How recent an article has to be to count as a live trigger rather than
+// background. The scorer gives a fresh event its full timing weight and
+// discounts a stale one, so this decides whether old news moves the priority.
+const FRESH_DAYS = 90;
+
+// GDELT stamps articles as YYYYMMDDTHHMMSSZ.
+export function parseSeendate(seendate: string | undefined): Date | null {
+  const m = (seendate ?? "").match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s] = m;
+  const t = Date.parse(`${y}-${mo}-${d}T${h}:${mi}:${s}Z`);
+  return Number.isNaN(t) ? null : new Date(t);
+}
+
+function mapArticles(data: any, now = Date.now()): NewsItem[] {
   const arts = Array.isArray(data?.articles) ? data.articles : [];
-  return arts.map((a: any) => ({
-    date: a.seendate ?? "",
-    type: "news",
-    summary: a.title ?? "",
-    source: a.url ?? "",
-    fresh: true,
-  }));
+  return arts.map((a: any) => {
+    const seen = parseSeendate(a.seendate);
+    return {
+      date: a.seendate ?? "",
+      type: "news",
+      summary: a.title ?? "",
+      source: a.url ?? "",
+      // Derive freshness from the article date. Hardcoding true gave a year-old
+      // funding story the same lift as one from last week, and an undated
+      // article is not evidence of recency either.
+      fresh: seen ? now - seen.getTime() <= FRESH_DAYS * 24 * 60 * 60 * 1000 : false,
+    };
+  });
 }
 
 // Keyless: try live GDELT only when explicitly enabled, else the news fixture.
