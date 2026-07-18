@@ -8,6 +8,7 @@ export type QueueRow = {
   contactId: string;
   name: string;
   company: string;
+  fit: number | null;
   priority: number | null;
   grade: string | null;
   status: "new" | "scored" | "needs review" | "approved" | "synced";
@@ -39,7 +40,7 @@ function deriveStatus(
  */
 export function buildQueue(
   contacts: { id: string; name: string; companyName: string | null }[],
-  latestScoreByContact: Record<string, { priority: number; grade: string; needsReview: boolean } | undefined>,
+  latestScoreByContact: Record<string, { fit: number; priority: number; grade: string; needsReview: boolean } | undefined>,
   writebackByContact: Record<string, { status: string } | undefined>,
 ): QueueRow[] {
   const rows: QueueRow[] = contacts.map((c) => {
@@ -48,6 +49,7 @@ export function buildQueue(
       contactId: c.id,
       name: c.name,
       company: c.companyName ?? "",
+      fit: score ? score.fit : null,
       priority: score ? score.priority : null,
       grade: score ? score.grade : null,
       status: deriveStatus(score, writebackByContact[c.id]),

@@ -12,12 +12,12 @@ describe("buildQueue", () => {
       { id: "c-synced", name: "Syd Synced", companyName: "Syncco" },
     ];
     const latestScoreByContact = {
-      "c-scored": { priority: 60, grade: "B", needsReview: false },
-      "c-review": { priority: 90, grade: "A", needsReview: true },
-      "c-approved": { priority: 40, grade: "C", needsReview: false },
-      "c-synced": { priority: 80, grade: "A", needsReview: false },
+      "c-scored": { fit: 62, priority: 60, grade: "B", needsReview: false },
+      "c-review": { fit: 92, priority: 90, grade: "A", needsReview: true },
+      "c-approved": { fit: 42, priority: 40, grade: "C", needsReview: false },
+      "c-synced": { fit: 82, priority: 80, grade: "A", needsReview: false },
       // c-new intentionally absent -> no score.
-    } as Record<string, { priority: number; grade: string; needsReview: boolean } | undefined>;
+    } as Record<string, { fit: number; priority: number; grade: string; needsReview: boolean } | undefined>;
     const writebackByContact = {
       "c-approved": { status: "approved" },
       "c-synced": { status: "written" },
@@ -39,6 +39,8 @@ describe("buildQueue", () => {
     expect(byId["c-new"].status).toBe("new");
     expect(byId["c-new"].priority).toBeNull();
     expect(byId["c-new"].grade).toBeNull();
+    expect(byId["c-new"].fit).toBeNull();
+    expect(byId["c-scored"].fit).toBe(62);
     expect(byId["c-scored"].status).toBe("scored");
     expect(byId["c-review"].status).toBe("needs review");
     expect(byId["c-approved"].status).toBe("approved");
@@ -51,7 +53,7 @@ describe("buildQueue", () => {
     // acted on it -> status should be "approved", not "needs review".
     const queue = buildQueue(
       contacts,
-      { c1: { priority: 50, grade: "B", needsReview: true } },
+      { c1: { fit: 55, priority: 50, grade: "B", needsReview: true } },
       { c1: { status: "approved" } },
     );
     expect(queue[0].status).toBe("approved");
@@ -62,6 +64,7 @@ describe("buildQueue", () => {
       contactId: "c",
       name: "C",
       company: "Co",
+      fit: 10,
       priority: 10,
       grade,
       status,
@@ -89,9 +92,9 @@ describe("buildQueue", () => {
       { id: "c", name: "C", companyName: "Co" },
     ];
     const scores = {
-      a: { priority: 50, grade: "B", needsReview: false },
-      b: { priority: 50, grade: "B", needsReview: false },
-      c: { priority: 50, grade: "B", needsReview: false },
+      a: { fit: 50, priority: 50, grade: "B", needsReview: false },
+      b: { fit: 50, priority: 50, grade: "B", needsReview: false },
+      c: { fit: 50, priority: 50, grade: "B", needsReview: false },
     };
     const queue = buildQueue(contacts, scores, {});
     expect(queue.map((r) => r.contactId)).toEqual(["a", "b", "c"]);

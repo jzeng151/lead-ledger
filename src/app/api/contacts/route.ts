@@ -17,6 +17,7 @@ export async function GET() {
   const scoreRows = db
     .select({
       contactId: scores.contactId,
+      fit: scores.fit,
       priority: scores.priority,
       grade: scores.grade,
       needsReview: scores.needsReview,
@@ -28,7 +29,7 @@ export async function GET() {
 
   const latestScoreByContact: Record<
     string,
-    { priority: number; grade: string; needsReview: boolean } | undefined
+    { fit: number; priority: number; grade: string; needsReview: boolean } | undefined
   > = {};
   const latestStartedAt: Record<string, number> = {};
   for (const s of scoreRows) {
@@ -36,6 +37,7 @@ export async function GET() {
     if (latestStartedAt[s.contactId] === undefined || t >= latestStartedAt[s.contactId]) {
       latestStartedAt[s.contactId] = t;
       latestScoreByContact[s.contactId] = {
+        fit: s.fit,
         priority: s.priority,
         grade: s.grade,
         needsReview: s.needsReview,

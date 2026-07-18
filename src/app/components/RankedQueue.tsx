@@ -25,6 +25,7 @@ export function RankedQueue({ rows }: { rows: QueueRow[] }) {
           <th className="px-4 py-2.5 font-semibold">Contact</th>
           <th className="px-4 py-2.5 font-semibold">Company</th>
           <th className="w-24 px-4 py-2.5 text-right font-semibold">Priority</th>
+          <th className="w-16 px-4 py-2.5 text-right font-semibold">Fit</th>
           <th className="w-20 px-4 py-2.5 text-center font-semibold">Grade</th>
           <th className="w-32 px-4 py-2.5 font-semibold">Status</th>
         </tr>
@@ -44,6 +45,9 @@ export function RankedQueue({ rows }: { rows: QueueRow[] }) {
             <td className="px-4 py-3 text-muted">{row.company}</td>
             <td className="px-4 py-3 text-right text-base font-semibold tabular-nums text-fg">
               {row.priority === null ? <span className="font-normal text-subtle">-</span> : row.priority}
+            </td>
+            <td className="px-4 py-3 text-right tabular-nums text-muted">
+              {row.fit === null ? <span className="text-subtle">-</span> : row.fit}
             </td>
             <td className="px-4 py-3 text-center">
               <GradePill grade={row.grade} />
