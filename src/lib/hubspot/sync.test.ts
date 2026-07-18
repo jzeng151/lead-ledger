@@ -118,3 +118,30 @@ describe("domainFromEmail", () => {
     expect(db.select().from(contacts).where(eq(contacts.id, "nw-1")).get()?.companyDomain).toBe("northwind.dev");
   });
 });
+
+describe("email normalization", () => {
+  it("dedupes across casing and whitespace", () => {
+    const now = new Date();
+    db.insert(contacts).values({ id: "case-old", name: "Rae Case", email: "rae@example.com", props: {}, syncedAt: now }).run();
+    db.insert(contacts).values({ id: "case-new", name: "Rae Case", email: "rae@example.com", props: {}, syncedAt: now }).run();
+
+    // HubSpot returning the same person with different casing used to miss the
+    // stale row entirely, leaving both in the queue.
+    dedupeByEmail("  RAE@Example.COM  ", "case-new");
+
+    expect(db.select().from(contacts).where(eq(contacts.id, "case-old")).get()).toBeUndefined();
+    expect(db.select().from(contacts).where(eq(contacts.id, "case-new")).get()?.id).toBe("case-new");
+  });
+
+  it("stores the canonical form on sync", async () => {
+    vi.stubEnv("HUBSPOT_TOKEN", "test-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ results: [{ id: "case-sync", properties: { firstname: "Mo", email: " MO@Northwind.DEV " } }] })),
+    );
+
+    await syncContacts();
+
+    expect(db.select().from(contacts).where(eq(contacts.id, "case-sync")).get()?.email).toBe("mo@northwind.dev");
+  });
+});

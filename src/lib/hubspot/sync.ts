@@ -54,12 +54,24 @@ export function purgeContact(id: string) {
 }
 
 /**
+ * Emails are compared with SQLite's case-sensitive text equality, so store and
+ * match one canonical form. Without this, HubSpot returning the same person with
+ * different casing leaves both rows in the queue, each scored and written back.
+ */
+export function normalizeEmail(email: string | null | undefined): string | null {
+  const e = (email ?? "").trim().toLowerCase();
+  return e || null;
+}
+
+/**
  * Guard against duplicate people: remove any contact that shares this email but
  * has a different id (e.g. a stale row left over from an earlier sync) before the
  * real HubSpot contact is upserted, so a sync never leaves the same person in the
  * queue twice. Contacts without an email are left untouched.
  */
-export function dedupeByEmail(email: string, keepId: string) {
+export function dedupeByEmail(rawEmail: string, keepId: string) {
+  const email = normalizeEmail(rawEmail);
+  if (!email) return;
   const stale = db
     .select({ id: contacts.id })
     .from(contacts)
@@ -116,14 +128,15 @@ export async function syncContacts(): Promise<{ synced: number; source: "hubspot
     const p = r.properties ?? {};
     // Drop any prior row for the same person (matched by email) under a different
     // id before upserting the real one, so a sync can't create duplicates.
-    if (p.email) dedupeByEmail(p.email, r.id);
+    const email = normalizeEmail(p.email);
+    if (email) dedupeByEmail(email, r.id);
     const row = {
       id: r.id,
       name: [p.firstname, p.lastname].filter(Boolean).join(" ") || r.id,
-      email: p.email ?? null,
+      email,
       title: p.jobtitle ?? null,
       companyName: p.company ?? null,
-      companyDomain: normalizeDomain(p.website) ?? domainFromEmail(p.email),
+      companyDomain: normalizeDomain(p.website) ?? domainFromEmail(email),
       props: p as Record<string, unknown>,
       syncedAt: now,
     };
