@@ -251,7 +251,25 @@ export async function runContact(
     // replaced. The write-back route reconciles the row against the newest score
     // once its HubSpot call returns.
     const staged = db.select({ status: writebacks.status }).from(writebacks).where(eq(writebacks.contactId, contactId)).get();
-    if (staged?.status !== "writing") {
+
+    // And only stage from the contact's newest run. A run that outlived the
+    // staleness window can finish after a newer one has already been approved;
+    // latest-score selection ignores it, so re-staging from it would reopen an
+    // already-synced verdict and invite a duplicate approval.
+    const newestRunId = db
+      .select({ id: runs.id, startedAt: runs.startedAt })
+      .from(runs)
+      .where(eq(runs.contactId, contactId))
+      .all()
+      .reduce<{ id: string; at: number }>(
+        (best, r) => {
+          const at = r.startedAt?.getTime() ?? 0;
+          return at > best.at || (at === best.at && r.id > best.id) ? { id: r.id, at } : best;
+        },
+        { id: "", at: -Infinity },
+      ).id;
+
+    if (staged?.status !== "writing" && newestRunId === runId) {
       db.insert(writebacks)
         .values({ contactId, status: "pending", payload: writeback })
         .onConflictDoUpdate({

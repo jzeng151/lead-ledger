@@ -314,3 +314,28 @@ describe("a re-run finishing during an approval", () => {
     expect(db.select().from(schema.runs).where(eq(schema.runs.id, RUN)).get()?.status).toBe("scored");
   });
 });
+
+describe("an old run finishing after a newer one", () => {
+  it("does not restage the write-back from the superseded run", async () => {
+    const CONTACT = "c-orch-superseded";
+    const OLD = "run-superseded-1000";
+    const NEW = "run-superseded-2000";
+    db.insert(schema.contacts)
+      .values({ id: CONTACT, name: "Superseded", companyDomain: "northwind.dev", props: {}, syncedAt: new Date() })
+      .onConflictDoNothing()
+      .run();
+    // A newer run already finished and its verdict was approved and written.
+    db.insert(schema.runs).values({ id: NEW, contactId: CONTACT, status: "scored", startedAt: new Date() }).run();
+    db.insert(schema.writebacks)
+      .values({ contactId: CONTACT, status: "written", payload: { properties: { lead_priority_score: 90, lead_grade: "A" }, note: "new" }, writtenAt: new Date() })
+      .run();
+
+    // The older run, long outlived, finally returns.
+    await runContact(OLD, CONTACT, fakeDeps);
+
+    const wb = db.select().from(schema.writebacks).where(eq(schema.writebacks.contactId, CONTACT)).get()!;
+    // Reopening this would show an already-synced contact as pending work again.
+    expect(wb.status).toBe("written");
+    expect((wb.payload as any).properties.lead_priority_score).toBe(90);
+  });
+});
