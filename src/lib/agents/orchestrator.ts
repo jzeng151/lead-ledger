@@ -146,16 +146,23 @@ export async function runContact(
       uncertain: claims.filter((c: any) => c.verdict === "uncertain").length,
     };
     bus.emit({ agent: "scorer", type: "scoring_started", payload: {} });
+    // Re-read the dials rather than using the snapshot taken before the fan-out.
+    // A settings save during a long run cannot be picked up by rescoreAll (this
+    // run has no dossier or score row yet), so without this the run would land
+    // its verdict under the old weights right after the new ones were saved.
+    const scoringIcp = (db.select().from(icpConfig).where(eq(icpConfig.id, "default")).get()?.config as
+      | IcpConfig
+      | undefined) ?? icp;
     const s = score(
       { icpFit, engagement: partials.engagement, news: partials.news, verification: verif, identityUnverified: partials.contact?.identityUnverified },
-      icp,
+      scoringIcp,
     );
 
     // Synthesis + citation-integrity gate. Refs whose claim was rejected by
     // verification, or that point at no real dossier field, are stripped. Build
     // the synthesis input after scoring so the writer sees the full picture:
     // partials plus the ICP-Fit read, verification verdicts, and computed score.
-    const synthesisJson = JSON.stringify({ ...partials, icpFit, verification, score: s, icp });
+    const synthesisJson = JSON.stringify({ ...partials, icpFit, verification, score: s, icp: scoringIcp });
     // Synthesis is non-fatal: it is the rep-facing rationale layer, not scoring
     // input, so a synthesis failure must never discard an already-computed score.
     let synth: Synthesis = { rationale: null, nextStep: null, citations: [] };
