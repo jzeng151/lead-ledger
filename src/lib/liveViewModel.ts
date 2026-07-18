@@ -71,76 +71,74 @@ export function nodeStatus(events: LiveEvent[], node: string): NodeStatus {
 export type LogLine = { agent: string; text: string };
 
 /**
- * Flatten events into human-readable log lines, newest last. Consecutive
- * "agent_token" deltas from the same agent coalesce into one growing line so a
- * streamed response reads as a single block. Any non-token event (or a token
- * from a different agent) breaks the current streaming line.
+ * Flatten events into human-readable log lines, grouped by agent so each agent's
+ * tool calls read under the agent that made them rather than interleaved across
+ * the parallel fan-out. Run-level lines (started, plan, completed, error) bracket
+ * the per-agent groups; agents are ordered by first appearance (the fan-out, then
+ * judge/score/synthesis order). Within an agent, tool calls appear in order and
+ * consecutive token deltas coalesce into one streamed block. The internal
+ * `submit_findings` call is hidden (the "done" line already marks completion);
+ * agent_tool_result and stream_end are not logged.
  *
  * Line shapes:
- *   run_started      -> "* run started"           (rendered "▸ run started")
- *   plan_ready       -> "* plan: a, b, c"
- *   agent_started    -> "* <agent> started"
- *   scoring_started  -> "* scorer started"
- *   agent_tool_call  -> "  . <agent> -> <name>"
- *   agent_token      -> appended to current streaming line
- *   agent_completed  -> "  v <agent> done"
- *   score_ready      -> "  v scorer done"
- *   run_completed    -> "  v run completed"
- *   agent_error      -> "  x error: <message>"
- * (agent_tool_result and stream_end are intentionally not logged.)
+ *   run_started      -> "▸ run started"
+ *   plan_ready       -> "  · plan: a, b, c"
+ *   agent_started    -> "▸ <agent> started"
+ *   scoring_started  -> "▸ scorer started"
+ *   agent_tool_call  -> "    · <name>"            (nested under its agent)
+ *   agent_token      -> appended to the agent's streaming line
+ *   agent_completed  -> "  ✓ <agent> done"
+ *   score_ready      -> "  ✓ scorer done"
+ *   run_completed    -> "  ✓ run completed"
+ *   agent_error      -> "  ✗ <agent> error: <message>" (or run-level "  ✗ error: ...")
  */
 export function logLines(events: LiveEvent[]): LogLine[] {
   const lines: LogLine[] = [];
-  // The line currently being appended to by consecutive same-agent tokens, or
-  // null when the previous event was not a token from that agent.
-  let streaming: LogLine | null = null;
 
-  const push = (agent: string, text: string) => {
-    lines.push({ agent, text });
-    streaming = null;
-  };
+  // Run-level header.
+  if (events.some((e) => e.type === "run_started")) lines.push({ agent: "orchestrator", text: "▸ run started" });
+  const plan = events.find((e) => e.type === "plan_ready");
+  if (plan) lines.push({ agent: "orchestrator", text: "  · plan: " + (plan.payload?.agents ?? []).join(", ") });
 
+  // Distinct non-orchestrator agents in first-appearance order.
+  const order: string[] = [];
   for (const e of events) {
-    const agent = e.agent ?? "";
-    switch (e.type) {
-      case "agent_token": {
+    const a = e.agent ?? "";
+    if (a && a !== "orchestrator" && !order.includes(a)) order.push(a);
+  }
+
+  for (const agent of order) {
+    const own = events.filter((e) => e.agent === agent);
+    if (own.some((e) => e.type === "agent_started" || e.type === "scoring_started"))
+      lines.push({ agent, text: "▸ " + agent + " started" });
+
+    // Body: this agent's tool calls and streamed text, in order.
+    let streaming: LogLine | null = null;
+    for (const e of own) {
+      if (e.type === "agent_token") {
         const text = e.payload?.text ?? "";
-        if (streaming && streaming.agent === agent) {
-          streaming.text += text;
-        } else {
+        if (streaming) streaming.text += text;
+        else {
           streaming = { agent, text };
           lines.push(streaming);
         }
-        break;
+      } else if (e.type === "agent_tool_call" && e.payload?.name !== "submit_findings") {
+        streaming = null;
+        lines.push({ agent, text: "    · " + (e.payload?.name ?? "") });
       }
-      case "run_started":
-        push(agent, "▸ run started");
-        break;
-      case "plan_ready":
-        push(agent, "  · plan: " + (e.payload?.agents ?? []).join(", "));
-        break;
-      case "agent_started":
-      case "scoring_started":
-        push(agent, "▸ " + agent + " started");
-        break;
-      case "agent_tool_call":
-        push(agent, "  · " + agent + " -> " + (e.payload?.name ?? ""));
-        break;
-      case "agent_completed":
-      case "score_ready":
-        push(agent, "  ✓ " + agent + " done");
-        break;
-      case "run_completed":
-        push(agent, "  ✓ run completed");
-        break;
-      case "agent_error":
-        push(agent, "  ✗ error: " + (e.payload?.message ?? "unknown"));
-        break;
-      default:
-        // agent_tool_result, stream_end, and any unknown types are not logged.
-        break;
     }
+
+    // Terminal line for the agent.
+    const err = own.find((e) => e.type === "agent_error");
+    if (err) lines.push({ agent, text: "  ✗ " + agent + " error: " + (err.payload?.message ?? "unknown") });
+    else if (own.some((e) => e.type === "agent_completed" || e.type === "score_ready"))
+      lines.push({ agent, text: "  ✓ " + agent + " done" });
   }
+
+  // Run-level footer.
+  const orchErr = events.find((e) => e.type === "agent_error" && e.agent === "orchestrator");
+  if (orchErr) lines.push({ agent: "orchestrator", text: "  ✗ error: " + (orchErr.payload?.message ?? "unknown") });
+  if (events.some((e) => e.type === "run_completed")) lines.push({ agent: "orchestrator", text: "  ✓ run completed" });
 
   return lines;
 }

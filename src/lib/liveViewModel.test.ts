@@ -100,22 +100,48 @@ describe("logLines", () => {
     ]);
   });
 
-  it("breaks coalescing when a different agent's token interleaves", () => {
+  it("groups each agent's tokens together even when interleaved by another agent", () => {
     const events: LiveEvent[] = [
       { agent: "a", type: "agent_token", payload: { text: "1" } },
       { agent: "b", type: "agent_token", payload: { text: "2" } },
       { agent: "a", type: "agent_token", payload: { text: "3" } },
     ];
+    // Grouped by agent (first-appearance order), a's deltas coalesce despite b's.
     expect(logLines(events)).toEqual([
-      { agent: "a", text: "1" },
+      { agent: "a", text: "13" },
       { agent: "b", text: "2" },
-      { agent: "a", text: "3" },
     ]);
   });
 
-  it("renders a tool call line", () => {
+  it("nests a tool call under its agent (no interleaved agent prefix)", () => {
     const events: LiveEvent[] = [{ agent: "company", type: "agent_tool_call", payload: { name: "pdl_company_enrich" } }];
-    expect(logLines(events)).toEqual([{ agent: "company", text: "  · company -> pdl_company_enrich" }]);
+    expect(logLines(events)).toEqual([{ agent: "company", text: "    · pdl_company_enrich" }]);
+  });
+
+  it("groups interleaved parallel tool calls under the agent that made them", () => {
+    // Two agents fan out; their tool calls arrive interleaved chronologically.
+    const events: LiveEvent[] = [
+      { agent: "company", type: "agent_started", payload: {} },
+      { agent: "tech", type: "agent_started", payload: {} },
+      { agent: "tech", type: "agent_tool_call", payload: { name: "detect_tech_stack" } },
+      { agent: "company", type: "agent_tool_call", payload: { name: "pdl_company_enrich" } },
+      { agent: "tech", type: "agent_tool_call", payload: { name: "github_org_lookup" } },
+      { agent: "company", type: "agent_tool_call", payload: { name: "apollo_org_enrich" } },
+      { agent: "company", type: "agent_tool_call", payload: { name: "submit_findings" } },
+      { agent: "tech", type: "agent_completed", payload: {} },
+      { agent: "company", type: "agent_completed", payload: {} },
+    ];
+    // company appears first; each agent's tools sit under it, submit_findings hidden.
+    expect(logLines(events)).toEqual([
+      { agent: "company", text: "▸ company started" },
+      { agent: "company", text: "    · pdl_company_enrich" },
+      { agent: "company", text: "    · apollo_org_enrich" },
+      { agent: "company", text: "  ✓ company done" },
+      { agent: "tech", text: "▸ tech started" },
+      { agent: "tech", text: "    · detect_tech_stack" },
+      { agent: "tech", text: "    · github_org_lookup" },
+      { agent: "tech", text: "  ✓ tech done" },
+    ]);
   });
 
   it("renders the no-key sequence ending in an error line", () => {
