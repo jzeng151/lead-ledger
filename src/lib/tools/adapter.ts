@@ -2,12 +2,21 @@ import fs from "node:fs";
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 
+/**
+ * Choose the real adapter when its provider key is present, otherwise the
+ * fixture one. LEAD_LEDGER_DEMO=1 forces fixtures for every adapter even when
+ * keys are set: the seeded contacts use fictional domains and ids that real
+ * providers do not know, so a stray key would otherwise turn a demo run into
+ * empty results or errors. Sync and write-back read HUBSPOT_TOKEN directly and
+ * are unaffected, so demo mode still writes to real HubSpot.
+ */
 export function pickImpl<A extends unknown[], R>(
   key: string | undefined,
   real: (...a: A) => Promise<R>,
   mock: (...a: A) => Promise<R>,
 ) {
-  return (...a: A) => (key ? real(...a) : mock(...a));
+  const useReal = Boolean(key) && process.env.LEAD_LEDGER_DEMO !== "1";
+  return (...a: A) => (useReal ? real(...a) : mock(...a));
 }
 
 // ---------------------------------------------------------------------------
