@@ -289,3 +289,28 @@ describe("synthesis wrote a rationale but cited nothing", () => {
     expect((row.reviewReasons as string[]).some((r) => r.startsWith("uncited rationale"))).toBe(true);
   });
 });
+
+describe("a re-run finishing during an approval", () => {
+  it("leaves a claimed write-back row alone", async () => {
+    const RUN = "run-orch-claimed";
+    const CONTACT = "c-orch-claimed";
+    db.insert(schema.contacts)
+      .values({ id: CONTACT, name: "Claimed", companyDomain: "northwind.dev", props: {}, syncedAt: new Date() })
+      .onConflictDoNothing()
+      .run();
+    // A HubSpot call is out for the previous score.
+    db.insert(schema.writebacks)
+      .values({ contactId: CONTACT, status: "writing", payload: { properties: { lead_priority_score: 70, lead_grade: "C" }, note: "old" }, approvedAt: new Date() })
+      .run();
+
+    await runContact(RUN, CONTACT, fakeDeps);
+
+    // Resetting the claim here would let that older write finish and mark the
+    // contact written against the verdict this run just replaced.
+    const wb = db.select().from(schema.writebacks).where(eq(schema.writebacks.contactId, CONTACT)).get()!;
+    expect(wb.status).toBe("writing");
+    expect((wb.payload as any).properties.lead_priority_score).toBe(70);
+    // The run itself still scored normally.
+    expect(db.select().from(schema.runs).where(eq(schema.runs.id, RUN)).get()?.status).toBe("scored");
+  });
+});

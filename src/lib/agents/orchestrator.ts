@@ -245,13 +245,21 @@ export async function runContact(
       properties: { lead_priority_score: s.priority, lead_grade: s.grade },
       note: cleanRationale ?? "",
     };
-    db.insert(writebacks)
-      .values({ contactId, status: "pending", payload: writeback })
-      .onConflictDoUpdate({
-        target: writebacks.contactId,
-        set: { status: "pending", payload: writeback, approvedAt: null, writtenAt: null },
-      })
-      .run();
+    // Leave a claimed row alone. If a rep approved just before this re-run
+    // finished, resetting the claim to pending here would let that older write
+    // complete and mark the contact written against the verdict this run just
+    // replaced. The write-back route reconciles the row against the newest score
+    // once its HubSpot call returns.
+    const staged = db.select({ status: writebacks.status }).from(writebacks).where(eq(writebacks.contactId, contactId)).get();
+    if (staged?.status !== "writing") {
+      db.insert(writebacks)
+        .values({ contactId, status: "pending", payload: writeback })
+        .onConflictDoUpdate({
+          target: writebacks.contactId,
+          set: { status: "pending", payload: writeback, approvedAt: null, writtenAt: null },
+        })
+        .run();
+    }
 
     db.update(runs).set({ status: "scored", finishedAt: new Date() }).where(eq(runs.id, runId)).run();
 
