@@ -186,3 +186,47 @@ describe("rescoreAll: contradicted claims survive", () => {
     expect((row.reviewReasons as string[]).some((r) => r.startsWith("verification contradiction"))).toBe(true);
   });
 });
+
+describe("rescoreAll: reason carrying and run ties", () => {
+  it("keeps the uncited-rationale warning across a settings save", () => {
+    const now = new Date();
+    db.insert(runs).values({ id: "rs-unc-run", contactId: "rs-unc", status: "scored", startedAt: now }).run();
+    db.insert(dossiers).values({ runId: "rs-unc-run", ...dossier }).run();
+    db.insert(scores)
+      .values({ runId: "rs-unc-run", contactId: "rs-unc", fit: 90, engagement: 0, timing: 80, priority: 100, grade: "A", needsReview: true, reviewReasons: ["uncited rationale: the verdict cites no dossier field"], citations: [] })
+      .run();
+
+    rescoreAll(DEFAULT_ICP);
+
+    const row = db.select().from(scores).where(eq(scores.runId, "rs-unc-run")).get()!;
+    // Dropping it would clear needsReview and make unbacked prose approvable.
+    expect(row.needsReview).toBe(true);
+    expect((row.reviewReasons as string[]).some((r) => r.startsWith("uncited rationale"))).toBe(true);
+  });
+
+  it("stages the newer of two runs that share a stored second", () => {
+    // Both runs land in the same SQLite second; only the runId distinguishes them.
+    const sameSecond = new Date(1_700_000_000_000);
+    for (const [id, fitAxis] of [["rs-tie-1000", 0.9], ["rs-tie-2000", 0.6]] as const) {
+      db.insert(runs).values({ id, contactId: "rs-tie", status: "scored", startedAt: sameSecond }).run();
+      db.insert(dossiers)
+        .values({
+          runId: id,
+          ...dossier,
+          merged: { icpFit: { firmographic: fitAxis, role: fitAxis, technographic: fitAxis, disqualified: false, conflicts: [] } },
+        })
+        .run();
+      db.insert(scores)
+        .values({ runId: id, contactId: "rs-tie", fit: 0, engagement: 0, timing: 0, priority: 0, grade: "F", needsReview: false, reviewReasons: [], citations: [] })
+        .run();
+    }
+    db.insert(writebacks)
+      .values({ contactId: "rs-tie", status: "pending", payload: { properties: { lead_priority_score: 1, lead_grade: "F" }, note: "" } })
+      .run();
+
+    rescoreAll(DEFAULT_ICP);
+
+    // rs-tie-2000 sorts last, so its verdict (fit 60 -> D) is the staged one.
+    expect((db.select().from(writebacks).where(eq(writebacks.contactId, "rs-tie")).get()!.payload as any).properties.lead_grade).toBe("D");
+  });
+});

@@ -105,7 +105,7 @@ export function rescoreAll(icp: IcpConfig): number {
   );
   const newest = new Map<
     string,
-    { at: number; priority: number; grade: string; needsReview: boolean; wasNeedsReview: boolean }
+    { at: number; runId: string; priority: number; grade: string; needsReview: boolean; wasNeedsReview: boolean }
   >();
 
   let updated = 0;
@@ -121,7 +121,8 @@ export function rescoreAll(icp: IcpConfig): number {
       (r) =>
         r.startsWith("unverified claims in rationale") ||
         r.startsWith("unmatched verification claim") ||
-        r.startsWith("no rationale"),
+        r.startsWith("no rationale") ||
+        r.startsWith("uncited rationale"),
     );
     const reviewReasons = [...s.reviewReasons, ...carried];
 
@@ -140,9 +141,12 @@ export function rescoreAll(icp: IcpConfig): number {
 
     const at = startedAt.get(d.runId) ?? 0;
     const seen = newest.get(existing.contactId);
-    if (!seen || at >= seen.at)
+    // startedAt is second-resolution, so tie-break on runId (which carries the
+    // millisecond stamp), matching the queue, detail, and write-back routes.
+    if (!seen || at > seen.at || (at === seen.at && d.runId > seen.runId))
       newest.set(existing.contactId, {
         at,
+        runId: d.runId,
         priority: s.priority,
         grade: s.grade,
         needsReview: reviewReasons.length > 0,
