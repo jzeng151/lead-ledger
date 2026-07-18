@@ -1,3 +1,5 @@
+import { eq } from "drizzle-orm";
+
 import { db, schema } from "@/db";
 import { syncContacts } from "@/lib/hubspot/sync";
 import { runContact } from "@/lib/agents/orchestrator";
@@ -5,7 +7,7 @@ import { runContact } from "@/lib/agents/orchestrator";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const { contacts, scores } = schema;
+const { contacts, scores, runs } = schema;
 
 export async function POST() {
   const { synced, source } = await syncContacts();
@@ -18,7 +20,19 @@ export async function POST() {
     db.select({ contactId: scores.contactId }).from(scores).all().map((s) => s.contactId),
   );
 
-  const pending = contactRows.filter((c) => !scored.has(c.id));
+  // A contact whose run is still in flight has no score row yet, so scoring alone
+  // is not enough to exclude it: without this a second Sync would queue duplicate
+  // runs for the same contacts, burning API calls and racing the persisted score.
+  const inFlight = new Set(
+    db
+      .select({ contactId: runs.contactId })
+      .from(runs)
+      .where(eq(runs.status, "running"))
+      .all()
+      .map((r) => r.contactId),
+  );
+
+  const pending = contactRows.filter((c) => !scored.has(c.id) && !inFlight.has(c.id));
 
   // Cap fan-out: run the unscored contacts in small sequential chunks so a sync
   // never fires ~80 Anthropic runs at once. Detached from the response (like the
