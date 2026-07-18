@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import { runContact } from "@/lib/agents/orchestrator";
 import { activeRunForContact } from "@/lib/runs";
 
@@ -19,7 +21,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const runId = `run-${contactId}-${Date.now()}`;
   // runContact creates the runs row + bus synchronously before its first await, so by the
-  // time we return, the bus is live and early events are persisted. Fire-and-forget.
-  runContact(runId, contactId).catch((e) => console.error("run failed", runId, e));
+  // time we return, the bus is live and early events are persisted. after() keeps the rest
+  // of the work inside the route lifecycle, so a host that freezes the instance once the
+  // response is sent cannot strand this run in "running".
+  after(() => runContact(runId, contactId).catch((e) => console.error("run failed", runId, e)));
   return Response.json({ runId });
 }
