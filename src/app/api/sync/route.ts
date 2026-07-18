@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import { db, schema } from "@/db";
 import { syncContacts } from "@/lib/hubspot/sync";
 import { runContact } from "@/lib/agents/orchestrator";
@@ -41,13 +43,16 @@ export async function POST() {
   // prior fire-and-forget) so the POST returns immediately and the live view can
   // stream progress; each chunk settles before the next starts.
   const CONCURRENCY = 3;
-  void (async () => {
+  // after() ties the batch to the route's lifecycle instead of leaving it in an
+  // untracked promise, so a host that freezes the instance once the response is
+  // sent does not silently drop runs this response reported as queued.
+  after(async () => {
     for (let i = 0; i < pending.length; i += CONCURRENCY) {
       const chunk = pending.slice(i, i + CONCURRENCY);
       // contactId keeps the runId unique even if two runs mint in the same ms.
       await Promise.allSettled(chunk.map((c) => runContact(`run-${c.id}-${Date.now()}`, c.id)));
     }
-  })();
+  });
 
   return Response.json({ synced, source, queued: pending.length });
 }
