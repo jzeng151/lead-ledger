@@ -30,7 +30,11 @@ export type NodeStatus = "wait" | "running" | "done" | "error";
  *                 "run_started" event, or any intermediate event (tool call,
  *                 token) without a completion (amber).
  *   - "done"    : "agent_completed" / "score_ready" / "run_completed" (green).
- *   - "error"   : this node emitted "agent_error" (red).
+ *   - "error"   : this node emitted "agent_error" or "agent_warning" (red).
+ *
+ * "agent_warning" is a node-local failure in an optional layer (synthesis): the
+ * node itself failed, but the run carries on and still scores, so the warning is
+ * deliberately excluded from the global rule below.
  *
  * Global rule: an "agent_error" anywhere aborts the run. The orchestrator emits
  * that event so it turns red via the per-node rule. Any other node still in
@@ -51,6 +55,7 @@ export function nodeStatus(events: LiveEvent[], node: string): NodeStatus {
         status = "done";
         break;
       case "agent_error":
+      case "agent_warning":
         status = "error";
         break;
       case "agent_started":
@@ -128,9 +133,14 @@ export function logLines(events: LiveEvent[]): LogLine[] {
       }
     }
 
-    // Terminal line for the agent.
-    const err = own.find((e) => e.type === "agent_error");
-    if (err) lines.push({ agent, text: "  ✗ " + agent + " error: " + (err.payload?.message ?? "unknown") });
+    // Terminal line for the agent. A warning reads as a failure of this agent
+    // only, so it is labelled differently from a run-aborting error.
+    const err = own.find((e) => e.type === "agent_error" || e.type === "agent_warning");
+    if (err)
+      lines.push({
+        agent,
+        text: "  ✗ " + agent + (err.type === "agent_warning" ? " warning: " : " error: ") + (err.payload?.message ?? "unknown"),
+      });
     else if (own.some((e) => e.type === "agent_completed" || e.type === "score_ready"))
       lines.push({ agent, text: "  ✓ " + agent + " done" });
   }
@@ -205,6 +215,13 @@ export function traceLines(events: LiveEvent[]): TraceLine[] {
         break;
       case "agent_error":
         lines.push({ kind: "error", text: e.payload?.message ?? "unknown error", stack: e.payload?.stack });
+        break;
+      case "agent_warning":
+        lines.push({
+          kind: "error",
+          text: `${agent} warning (run continued): ${e.payload?.message ?? "unknown"}`,
+          stack: e.payload?.stack,
+        });
         break;
       default:
         // agent_token, stream_end, and any unknown types have no trace line.
@@ -341,6 +358,7 @@ export function agentDetail(events: LiveEvent[], agentKey: string): AgentDetailS
         findings = e.payload ?? null;
         break;
       case "agent_error":
+      case "agent_warning":
         error = e.payload?.message ?? "unknown error";
         break;
       default:

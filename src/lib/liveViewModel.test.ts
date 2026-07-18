@@ -301,3 +301,38 @@ describe("treeNodeStatus", () => {
     expect(treeNodeStatus([{ agent: "orchestrator", type: "run_started", payload: {} }], AGENT_TREE)).toBe("running");
   });
 });
+
+// A synthesis failure is non-fatal: the run keeps its deterministic score and
+// still reaches run_completed, so agent_warning must not read as a run abort.
+const SYNTHESIS_WARNING: LiveEvent[] = [
+  { agent: "orchestrator", type: "run_started", payload: { contactId: "c1" } },
+  { agent: "company", type: "agent_completed", payload: {} },
+  { agent: "synthesis", type: "agent_warning", payload: { message: "overloaded", stack: "Error: overloaded" } },
+  { agent: "scorer", type: "score_ready", payload: { priority: 91, grade: "A" } },
+  { agent: "orchestrator", type: "run_completed", payload: { priority: 91 } },
+];
+
+describe("agent_warning: node-local failure, not a run abort", () => {
+  it("marks only the warning node as error", () => {
+    expect(nodeStatus(SYNTHESIS_WARNING, "synthesis")).toBe("error");
+    expect(nodeStatus(SYNTHESIS_WARNING, "company")).toBe("done");
+    expect(nodeStatus(SYNTHESIS_WARNING, "scorer")).toBe("done");
+    expect(nodeStatus(SYNTHESIS_WARNING, "orchestrator")).toBe("done");
+  });
+
+  it("labels the log line as a warning and keeps the completed run footer", () => {
+    const texts = logLines(SYNTHESIS_WARNING).map((l) => l.text);
+    expect(texts).toContain("  ✗ synthesis warning: overloaded");
+    expect(texts).toContain("  ✓ run completed");
+  });
+
+  it("traces the warning with its stack and says the run continued", () => {
+    const warn = traceLines(SYNTHESIS_WARNING).find((l) => l.text.includes("overloaded"));
+    expect(warn?.text).toBe("synthesis warning (run continued): overloaded");
+    expect(warn?.stack).toBe("Error: overloaded");
+  });
+
+  it("surfaces the message in the synthesis detail pane", () => {
+    expect(agentDetail(SYNTHESIS_WARNING, "synthesis").error).toBe("overloaded");
+  });
+});

@@ -138,9 +138,12 @@ export async function runContact(
     try {
       synth = await deps.synthesize({ bus, dossierJson: synthesisJson, input });
     } catch (e) {
+      // agent_warning, not agent_error: the SSE route and the live view treat
+      // agent_error as terminal, so reusing it here would close the stream before
+      // run_completed and make a replay of a successfully scored run look failed.
       bus.emit({
         agent: "synthesis",
-        type: "agent_error",
+        type: "agent_warning",
         payload: { message: e instanceof Error ? e.message : String(e), stack: e instanceof Error ? e.stack : undefined },
       });
     }
