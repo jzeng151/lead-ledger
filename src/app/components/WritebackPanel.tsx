@@ -24,6 +24,30 @@ export function WritebackPanel({
   const [skipped, setSkipped] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Skip must be persisted, not local-only: otherwise the decision vanishes on
+  // refresh and the contact keeps resurfacing as pending work.
+  async function handleSkip() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/writeback/${contactId}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ skip: true }),
+      });
+      if (!res.ok) {
+        setError("Could not save skip");
+        return;
+      }
+      setSkipped(true);
+      onApproved?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleApprove() {
     setBusy(true);
     setError(null);
@@ -91,7 +115,7 @@ export function WritebackPanel({
           <button onClick={handleApprove} disabled={busy} className="btn btn-primary">
             {busy ? "Writing..." : "Approve & write"}
           </button>
-          <button onClick={() => setSkipped(true)} disabled={busy} className="btn btn-ghost">
+          <button onClick={handleSkip} disabled={busy} className="btn btn-ghost">
             Skip
           </button>
         </div>

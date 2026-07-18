@@ -27,4 +27,5 @@ export const STATUS_TONE: Record<string, string> = {
   "needs review": TONE.amber,
   approved: TONE.emerald,
   synced: TONE.emerald,
+  skipped: TONE.slate,
 };

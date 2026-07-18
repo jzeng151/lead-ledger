@@ -11,7 +11,7 @@ export type QueueRow = {
   fit: number | null;
   priority: number | null;
   grade: string | null;
-  status: "new" | "scored" | "needs review" | "approved" | "synced";
+  status: "new" | "scored" | "needs review" | "approved" | "synced" | "skipped";
 };
 
 /**
@@ -19,6 +19,8 @@ export type QueueRow = {
  *   - no score               -> "new"
  *   - writeback "written"     -> "synced"
  *   - writeback "approved"    -> "approved"
+ *   - writeback "skipped"     -> "skipped"   (an explicit human decision, so it
+ *                                             outranks needs-review)
  *   - score.needsReview       -> "needs review"
  *   - otherwise               -> "scored"
  */
@@ -29,6 +31,7 @@ function deriveStatus(
   if (!score) return "new";
   if (writeback?.status === "written") return "synced";
   if (writeback?.status === "approved") return "approved";
+  if (writeback?.status === "skipped") return "skipped";
   if (score.needsReview) return "needs review";
   return "scored";
 }
