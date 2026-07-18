@@ -165,3 +165,32 @@ describe("concurrent approvals with nothing staged", () => {
     expect([a.status, b.status].sort()).toEqual([200, 409]);
   });
 });
+
+describe("a score held for a domain change", () => {
+  it("cannot be approved individually either", async () => {
+    const now = new Date(Date.now() - 60_000);
+    db.insert(contacts).values({ id: "wbd-c", name: "Moved Domain", props: {}, syncedAt: now }).run();
+    db.insert(runs).values({ id: "wbd-run", contactId: "wbd-c", status: "scored", startedAt: now }).run();
+    db.insert(scores)
+      .values({
+        runId: "wbd-run",
+        contactId: "wbd-c",
+        fit: 90,
+        engagement: 0,
+        priority: 90,
+        grade: "A",
+        needsReview: true,
+        reviewReasons: ["company domain changed: this score was computed for a different company, re-scoring"],
+        citations: [],
+      })
+      .run();
+
+    // The replacement run has not started yet: the batch runs in chunks. Only
+    // the batch path checks needsReview, so an individual approve would push the
+    // previous company's verdict to HubSpot.
+    const res = await approve("wbd-c");
+
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/domain changed/);
+  });
+});

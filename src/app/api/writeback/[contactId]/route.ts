@@ -19,6 +19,7 @@ type LatestScore = {
   rationale: string | null;
   nextStep: string | null;
   needsReview: boolean;
+  reviewReasons: unknown;
 };
 
 /**
@@ -39,6 +40,7 @@ function latestScoreForContact(contactId: string): LatestScore | null {
       rationale: scores.rationale,
       nextStep: scores.nextStep,
       needsReview: scores.needsReview,
+      reviewReasons: scores.reviewReasons,
       startedAt: runs.startedAt,
     })
     .from(scores)
@@ -111,6 +113,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
     if (body.batch === true && score.needsReview) {
       return Response.json({ error: "needs manual review" }, { status: 409 });
     }
+
+    // The domain-change hold is the exception: this score was computed for a
+    // different company, and its replacement run may not have started yet (the
+    // batch runs in chunks, and the wait for a busy contact can time out). An
+    // individual approval would push the previous company's priority and
+    // rationale to HubSpot, so nobody may approve it until the re-run lands.
+    const reasons = (score.reviewReasons as string[] | null) ?? [];
+    if (reasons.some((r) => r.startsWith("company domain changed")))
+      return Response.json({ error: "company domain changed, waiting on a re-score" }, { status: 409 });
 
     const prior = db.select().from(writebacks).where(eq(writebacks.contactId, contactId)).get();
 
