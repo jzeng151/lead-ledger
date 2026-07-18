@@ -49,11 +49,10 @@ export const TechFindings = z.object({
   // is citeable and reaches the report rather than dying in a free-text note.
   httpsLive: field(z.boolean()).optional(),
   complementSignals: z.array(z.string()).default([]),
-  // Same reason, and the transform keeps the string contract downstream.
-  notes: z
-    .string()
-    .nullish()
-    .transform((v) => v ?? ""),
+  // Same reason. No .transform() to coerce null into "": every one of these
+  // schemas is converted to JSON Schema to build the submit_findings tool, and a
+  // transform cannot be represented there, which fails the whole agent.
+  notes: z.string().nullish(),
 });
 
 // 4. News / Trigger Signals
