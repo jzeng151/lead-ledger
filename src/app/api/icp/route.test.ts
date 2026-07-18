@@ -53,3 +53,15 @@ describe("ICP validation", () => {
     expect((await (await GET()).json()).grades.A).toBe(91);
   });
 });
+
+describe("ICP trigger weights", () => {
+  it("rejects a non-numeric trigger weight", async () => {
+    // computeTiming multiplies whichever weight matches the event type, so one
+    // bad value there is a NaN priority, not just a cosmetic problem.
+    const res = await PUT(
+      new Request("http://test/api/icp", { method: "PUT", body: JSON.stringify({ urgency: { weights: { funding: "bad" } } }) }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/urgency\.weights\.funding/);
+  });
+});

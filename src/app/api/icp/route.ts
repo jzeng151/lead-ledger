@@ -32,6 +32,10 @@ function validateIcp(c: IcpConfig): string | null {
     return "urgency needs numeric liftMax, floor, intentCoeff and staleFactor";
   if (!u.weights || typeof u.weights !== "object" || !num(u.weights.default))
     return "urgency.weights must be an object with a numeric default";
+  // Every trigger weight, not just default: computeTiming multiplies whichever
+  // one matches the event type, so a single string value there yields NaN.
+  const badWeight = Object.entries(u.weights).find(([, v]) => !num(v));
+  if (badWeight) return `urgency.weights.${badWeight[0]} must be a number`;
   return null;
 }
 
