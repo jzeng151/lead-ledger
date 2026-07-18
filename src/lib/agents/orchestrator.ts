@@ -112,10 +112,14 @@ export async function runContact(
     // fact-checker marked unsupported or contradicted trips review and is stripped
     // from the rationale.
     const claims: any[] = verification.claims ?? [];
+    // The citation gate strips a claim that is unsupported OR contradicted. The
+    // review reason, though, counts only genuinely unsupported claims: a
+    // contradiction already surfaces through its own reason, so counting it here
+    // too would double-report the same problem under a misleading label.
     const isRejected = (c: any) => c.verdict === "unsupported" || c.verdict === "contradicted";
     const verif = {
       contradictions: verification.contradictions ?? [],
-      unsupported: claims.filter(isRejected).length,
+      unsupported: claims.filter((c: any) => c.verdict === "unsupported").length,
     };
     bus.emit({ agent: "scorer", type: "scoring_started", payload: {} });
     const s = score(

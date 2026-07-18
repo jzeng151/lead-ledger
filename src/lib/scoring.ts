@@ -63,12 +63,28 @@ export function score(d: any, icp: IcpConfig) {
   const g = icp.grades;
   const grade = fit >= g.A ? "A" : fit >= g.B ? "B" : fit >= g.C ? "C" : fit >= g.D ? "D" : "F";
 
+  // Review reasons carry their specifics ("label: detail"), so the report shows
+  // WHAT was wrong rather than a bare category the rep has to go digging for.
+  const clip = (s: string, n = 220) => (s.length > n ? s.slice(0, n - 3).trimEnd() + "..." : s);
   const reasons: string[] = [];
-  if ((d.verification?.contradictions ?? []).length) reasons.push("verification contradiction");
-  if ((d.verification?.unsupported ?? 0) >= 2) reasons.push("unsupported claims");
-  if (priority >= icp.reviewBand[0] && priority <= icp.reviewBand[1]) reasons.push("ambiguous score band");
-  if (d.identityUnverified) reasons.push("identity unverified");
-  if ((d.icpFit?.conflicts ?? []).length >= 2) reasons.push("subagent conflict");
+
+  const contradictions: string[] = d.verification?.contradictions ?? [];
+  if (contradictions.length) reasons.push("verification contradiction: " + clip(contradictions.join("; ")));
+
+  const unsupported: number = d.verification?.unsupported ?? 0;
+  if (unsupported >= 2) reasons.push(`unsupported claims: ${unsupported} claims were not backed by a cited source`);
+
+  if (priority >= icp.reviewBand[0] && priority <= icp.reviewBand[1])
+    reasons.push(`ambiguous score band: priority ${priority} sits in the ${icp.reviewBand[0]}-${icp.reviewBand[1]} review range`);
+
+  if (d.identityUnverified)
+    reasons.push("identity unverified: the contact could not be matched to a verified person at this domain");
+
+  const conflicts: string[] = d.icpFit?.conflicts ?? [];
+  if (conflicts.length >= 2) reasons.push("subagent conflict: " + clip(conflicts.join("; ")));
+
+  if (d.engagement?.attributionUncertain)
+    reasons.push("engagement attribution uncertain: activity could not be tied to the corporate domain");
 
   return {
     fit,

@@ -82,8 +82,24 @@ describe("score: disqualified and verification behavior", () => {
     const flagged = score({ ...base, verification: { contradictions: ["role mismatch"], unsupported: 2 } }, DEFAULT_ICP);
     const clean = score({ ...base, verification: noVerif }, DEFAULT_ICP);
     expect(flagged.needsReview).toBe(true);
-    expect(flagged.reviewReasons).toContain("verification contradiction");
+    // The reason carries the specific contradiction, not just a category label.
+    const contradiction = flagged.reviewReasons.find((r) => r.startsWith("verification contradiction"));
+    expect(contradiction).toBeDefined();
+    expect(contradiction).toContain("role mismatch");
     expect(flagged.priority).toBe(clean.priority);
+  });
+
+  it("surfaces uncertain engagement attribution as its own review reason", () => {
+    const r = score(
+      {
+        icpFit: fit(0.8),
+        engagement: { topActions: ["demo_request"], recencyDays: 5, attributionUncertain: true },
+        verification: noVerif,
+      },
+      DEFAULT_ICP,
+    );
+    expect(r.needsReview).toBe(true);
+    expect(r.reviewReasons.some((x) => x.startsWith("engagement attribution uncertain"))).toBe(true);
   });
 
   it("a non-disqualifying conflict does not floor fit (old substring bug)", () => {

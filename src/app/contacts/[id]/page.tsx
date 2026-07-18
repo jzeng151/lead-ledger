@@ -145,12 +145,23 @@ export default function ContactDetailPage() {
                 Needs review
               </p>
               {score.reviewReasons && score.reviewReasons.length > 0 ? (
-                <ul className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-sm text-[var(--tone-amber-fg)]">
-                  {score.reviewReasons.map((r, i) => (
-                    <li key={i} className="rounded-md bg-[var(--tone-amber-bg)] px-2 py-0.5 ring-1 ring-inset ring-[var(--tone-amber-ring)]">
-                      {r}
-                    </li>
-                  ))}
+                <ul className="mt-2 flex flex-col gap-1.5 text-sm text-[var(--tone-amber-fg)]">
+                  {score.reviewReasons.map((r, i) => {
+                    // Reasons are "label: detail"; show the label bold and the
+                    // specifics after it so the rep sees what actually tripped.
+                    const at = r.indexOf(": ");
+                    const label = at > 0 ? r.slice(0, at) : r;
+                    const detail = at > 0 ? r.slice(at + 2) : null;
+                    return (
+                      <li key={i} className="flex gap-2">
+                        <span aria-hidden className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-[var(--tone-amber-fg)]" />
+                        <span>
+                          <span className="font-semibold">{label}</span>
+                          {detail ? <span className="opacity-90">: {detail}</span> : null}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : null}
             </div>

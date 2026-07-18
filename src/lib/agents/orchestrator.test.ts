@@ -68,7 +68,8 @@ describe("runContact", () => {
     const scoreRow = db.select().from(schema.scores).where(eq(schema.scores.runId, RUN_ID)).get();
     expect(scoreRow).toBeTruthy();
     expect(scoreRow!.needsReview).toBe(true);
-    expect(scoreRow!.reviewReasons).toContain("verification contradiction");
+    // Reasons carry their specifics, so match the label prefix.
+    expect((scoreRow!.reviewReasons as string[]).some((r) => r.startsWith("verification contradiction"))).toBe(true);
 
     // Numeric scores must equal the real scorer on the same canned inputs (which
     // include the news trigger the orchestrator passes through), so a swapped
