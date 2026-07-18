@@ -3,10 +3,11 @@
 import { useEffect, useRef } from "react";
 import { traceLines, type LiveEvent, type TraceKind } from "@/lib/liveViewModel";
 
-// info grey / tool amber / done green / error red.
+// info grey / tool amber / source cyan / done green / error red.
 const KIND_COLOR: Record<TraceKind, string> = {
   info: "text-slate-400",
   tool: "text-amber-400",
+  source: "text-sky-400",
   done: "text-emerald-400",
   error: "text-rose-400",
 };

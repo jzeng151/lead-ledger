@@ -1,5 +1,6 @@
 import { anthropic } from "../anthropic";
 import { TOOLS, TOOLSETS, submitTool } from "../tools/registry";
+import { withTrace } from "../tools/adapter";
 import { MODELS, EFFORT } from "../models";
 import type { z } from "zod";
 
@@ -46,6 +47,9 @@ export async function runSubagent(opts: RunSubagentOpts, client = anthropic) {
 
   bus.emit({ agent: agentKey, type: "agent_started", payload: {} });
 
+  // Source traces (each fetch / fixture read the tools perform) stream to the bus
+  // as tool_source events attributed to this subagent, for the run's Trace tab.
+  return withTrace((t) => bus.emit({ agent: agentKey, type: "tool_source", payload: t }), async () => {
   const runner = client.beta.messages.toolRunner({
     model,
     max_tokens: 8000,
@@ -101,4 +105,5 @@ export async function runSubagent(opts: RunSubagentOpts, client = anthropic) {
   const parsed = schema.parse(findings);
   bus.emit({ agent: agentKey, type: "agent_completed", payload: parsed });
   return parsed;
+  });
 }

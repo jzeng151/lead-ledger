@@ -145,8 +145,23 @@ export function logLines(events: LiveEvent[]): LogLine[] {
   return lines;
 }
 
-export type TraceKind = "info" | "tool" | "done" | "error";
+export type TraceKind = "info" | "tool" | "source" | "done" | "error";
 export type TraceLine = { kind: TraceKind; text: string; stack?: string };
+
+// Render a tool_source event as an indented source-access line under its tool
+// call: the exact location consulted (URL or fixture path), HTTP status on live
+// calls, and whether it found anything.
+function sourceLine(payload: any): TraceLine {
+  const verb =
+    payload?.mode === "fixture" ? "read" : payload?.mode === "db" ? "query" : payload?.mode === "web" ? "echo" : "GET";
+  const mark = payload?.outcome === "error" ? "✗" : payload?.outcome === "empty" ? "∅" : "✓";
+  const status = typeof payload?.status === "number" ? ` [${payload.status}]` : "";
+  const detail = payload?.detail ? ` — ${payload.detail}` : "";
+  return {
+    kind: payload?.outcome === "error" ? "error" : "source",
+    text: `    ${mark} ${verb} ${payload?.location ?? "?"}${status}${detail}`,
+  };
+}
 
 /**
  * Flatten events into terminal-style trace lines, one per mapped event in order.
@@ -171,6 +186,9 @@ export function traceLines(events: LiveEvent[]): TraceLine[] {
         break;
       case "agent_tool_call":
         lines.push({ kind: "tool", text: agent + " -> " + (e.payload?.name ?? "") });
+        break;
+      case "tool_source":
+        lines.push(sourceLine(e.payload));
         break;
       case "agent_tool_result":
         lines.push({ kind: "tool", text: agent + " <- result" });

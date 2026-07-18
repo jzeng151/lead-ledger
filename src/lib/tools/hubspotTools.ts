@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "../../db";
-import { pickImpl, loadFixture, fetchWithTimeout } from "./adapter";
+import { pickImpl, loadFixture, fetchWithTimeout, trace } from "./adapter";
 
 export type HubspotContact = {
   id: string;
@@ -40,6 +40,13 @@ async function realContact(id: string): Promise<HubspotContact> {
 }
 async function mockContact(id: string): Promise<HubspotContact> {
   const row = db.select().from(schema.contacts).where(eq(schema.contacts.id, id)).get();
+  trace({
+    query: id,
+    mode: "db",
+    location: "contacts table (local DB)",
+    outcome: row ? "found" : "empty",
+    detail: row ? undefined : "no contact row",
+  });
   return {
     id,
     name: row?.name ?? null,

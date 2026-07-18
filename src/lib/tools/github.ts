@@ -1,4 +1,4 @@
-import { fetchWithTimeout } from "./adapter";
+import { fetchWithTimeout, trace } from "./adapter";
 
 export type GithubOrg = {
   login: string | null;
@@ -32,6 +32,12 @@ export async function githubOrgLookup(org: string): Promise<GithubOrg> {
       // fall through to the echoed login
     }
   }
+  trace({
+    query: org,
+    mode: "web",
+    location: org ? `github.com/${org} (echoed, no live lookup)` : "github (no org)",
+    outcome: org ? "found" : "empty",
+  });
   return {
     login: org || null,
     url: org ? `https://github.com/${org}` : null,
