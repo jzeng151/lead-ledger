@@ -19,6 +19,9 @@ describe("isPublicHttpUrl", () => {
       "http://192.168.1.1/",
       "http://169.254.169.254/latest/meta-data/", // cloud metadata
       "http://[::1]/",
+      "http://[::ffff:127.0.0.1]/", // IPv4-mapped loopback
+      "http://[::ffff:7f00:1]/", // same, hex spelling
+      "http://[::ffff:10.0.0.5]/",
       "http://db.internal/",
       "http://printer.local/",
     ])
@@ -45,5 +48,12 @@ describe("fetchUrl", () => {
   it("returns page text for a public host", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>ok</html>", { status: 200 })));
     expect(await fetchUrl("https://northwind.dev")).toBe("<html>ok</html>");
+  });
+
+  it("caps a huge response instead of buffering all of it", async () => {
+    const body = "x".repeat(2 * 1024 * 1024); // 2MB page
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200 })));
+    const text = await fetchUrl("https://northwind.dev");
+    expect(text.length).toBe(512 * 1024);
   });
 });

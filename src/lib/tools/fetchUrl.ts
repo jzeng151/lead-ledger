@@ -22,8 +22,24 @@ export function isPublicHttpUrl(raw: string): boolean {
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") return false;
 
-  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  let host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (!host) return false;
+
+  // Decode an IPv4-mapped IPv6 literal to its IPv4 form, in both the dotted
+  // (::ffff:127.0.0.1) and hex (::ffff:7f00:1) spellings, so the IPv4 range
+  // checks below actually see it. Without this, loopback and private addresses
+  // reach the network through the mapped spelling.
+  const mapped = host.match(/^::ffff:(.+)$/i);
+  if (mapped) {
+    const rest = mapped[1];
+    const hex = rest.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+    if (hex) {
+      const n = (parseInt(hex[1], 16) << 16) | parseInt(hex[2], 16);
+      host = [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join(".");
+    } else {
+      host = rest;
+    }
+  }
   if (host === "localhost" || host.endsWith(".localhost")) return false;
   if (host.endsWith(".local") || host.endsWith(".internal")) return false;
 
@@ -43,13 +59,37 @@ export function isPublicHttpUrl(raw: string): boolean {
   return true;
 }
 
+// Enough of a page for the fingerprints and the https-liveness check, without
+// letting a huge or attacker-controlled response consume server memory and model
+// context. res.text() would buffer the whole body first, so read the stream and
+// stop at the cap.
+const MAX_BYTES = 512 * 1024;
+
+async function readCapped(res: Response): Promise<string> {
+  if (!res.body) return (await res.text()).slice(0, MAX_BYTES);
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (total < MAX_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      total += value.length;
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks).subarray(0, MAX_BYTES));
+}
+
 // Keyless: returns page text, or "" on any failure so callers can fall back deterministically.
 export async function fetchUrl(url: string): Promise<string> {
   if (!isPublicHttpUrl(url)) return "";
   try {
     const res = await fetchWithTimeout(url);
     if (!res.ok) return "";
-    return await res.text();
+    return await readCapped(res);
   } catch {
     return "";
   }
