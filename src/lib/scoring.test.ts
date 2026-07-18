@@ -258,3 +258,21 @@ describe("isFreshEvent", () => {
     expect(aged).toBeCloseTo(0.32); // 0.8 * staleFactor, not the full 0.8
   });
 });
+
+describe("classifyTrigger: hiring is not an exec hire", () => {
+  it("routes generic hiring to expansion and leadership hires to exec_hire", () => {
+    // A bare "hire" used to match the exec-hire branch first, so ordinary hiring
+    // took weight 0.7 instead of 0.4 and inflated priority.
+    expect(classifyTrigger("hiring spree")).toBe("expansion");
+    expect(classifyTrigger("hiring 40 engineers")).toBe("expansion");
+    expect(classifyTrigger("new CTO hired")).toBe("exec_hire");
+    expect(classifyTrigger("hires VP of Engineering")).toBe("exec_hire");
+  });
+
+  it("weights them differently", () => {
+    const hiring = computeTiming({ events: [{ type: "hiring spree", fresh: true }] }, DEFAULT_ICP);
+    const execHire = computeTiming({ events: [{ type: "new CTO hired", fresh: true }] }, DEFAULT_ICP);
+    expect(hiring).toBeCloseTo(0.4);
+    expect(execHire).toBeCloseTo(0.7);
+  });
+});

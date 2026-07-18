@@ -43,11 +43,14 @@ export function classifyTrigger(type: string | undefined): string {
   if (/down\s*round/.test(t)) return "down_round";
   if (/fund|raise|series|seed/.test(t)) return "funding";
   if (/layoff|reduction|\brif\b|headcount cut|job cut/.test(t)) return "layoffs";
-  if (/hire|exec|\bvp\b|cto|chief|head of|leadership/.test(t)) return "exec_hire";
+  // Leadership tokens only. A bare "hire" used to match here, so an ordinary
+  // "hiring spree" took the exec-hire weight (0.7) instead of expansion (0.4)
+  // and inflated priority for a company that hired no engineering leader.
+  if (/exec|\bvp\b|cto|cio|ciso|coo|chief|head of|leadership/.test(t)) return "exec_hire";
   if (/incident|outage|downtime|breach|postmortem/.test(t)) return "incident";
   if (/acqui|merger|m&a|acquired/.test(t)) return "mna";
   if (/launch|release|general availability|\bga\b|product/.test(t)) return "product_launch";
-  if (/expand|expansion|new office|hiring/.test(t)) return "expansion";
+  if (/expand|expansion|new office|hiring|hire/.test(t)) return "expansion";
   return "default";
 }
 
