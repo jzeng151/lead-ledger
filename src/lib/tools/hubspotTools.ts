@@ -87,5 +87,11 @@ async function mockEngagements(contactId: string): Promise<Engagement> {
   };
 }
 
-export const hubspotGetContact = pickImpl(process.env.HUBSPOT_TOKEN, realContact, mockContact);
-export const hubspotGetEngagements = pickImpl(process.env.HUBSPOT_TOKEN, realEngagements, mockEngagements);
+// Demo mode forces the HubSpot READ tools onto the fixture/DB path even when a
+// token is present, so a synced contact scores on the domain fixtures (real
+// engagement, so the demo spread holds) while syncContacts and applyWriteback
+// keep reading process.env.HUBSPOT_TOKEN directly and still write live.
+const readKey = process.env.LEAD_LEDGER_DEMO === "1" ? undefined : process.env.HUBSPOT_TOKEN;
+
+export const hubspotGetContact = pickImpl(readKey, realContact, mockContact);
+export const hubspotGetEngagements = pickImpl(readKey, realEngagements, mockEngagements);

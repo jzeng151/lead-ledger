@@ -22,7 +22,7 @@ Open http://localhost:3000, then click "Sync contacts" to pull your HubSpot cont
 
 ## Demo walkthrough
 
-1. Sync the queue: with `HUBSPOT_TOKEN` set, click "Sync contacts" to pull contacts from HubSpot (deduped by email). `npm run reseed` clears local state back to an empty queue.
+1. Sync the queue: with `HUBSPOT_TOKEN` set, click "Sync contacts" to pull contacts from HubSpot (deduped by email). `npm run reseed` clears local state back to an empty queue. For a stable showcase, set `LEAD_LEDGER_DEMO=1` so scoring reads contact + engagement from the domain fixtures (keeping the demo spread) while sync and write-back still use the live token.
 2. Dashboard: contacts ranked by priority, filterable by status (new, scored, needs review, approved, synced).
 3. Open a contact.
 4. Click "Run" to start the agentic pipeline.
