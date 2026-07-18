@@ -154,3 +154,36 @@ describe("email normalization", () => {
     expect(db.select().from(contacts).where(eq(contacts.id, "case-sync")).get()?.email).toBe("mo@northwind.dev");
   });
 });
+
+describe("contacts archived in HubSpot", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("purges a local row HubSpot no longer returns", async () => {
+    vi.stubEnv("HUBSPOT_TOKEN", "test-token");
+    db.insert(contacts).values({ id: "gone-1", name: "Archived Person", props: {}, syncedAt: new Date() }).run();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ results: [{ id: "still-here", properties: { firstname: "Ada" } }] })),
+    );
+
+    await syncContacts();
+
+    // Left in place it would be re-scored and its write-back would PATCH a dead id.
+    expect(db.select().from(contacts).where(eq(contacts.id, "gone-1")).get()).toBeUndefined();
+    expect(db.select().from(contacts).where(eq(contacts.id, "still-here")).get()?.id).toBe("still-here");
+  });
+
+  it("purges nothing when the pull came back empty", async () => {
+    vi.stubEnv("HUBSPOT_TOKEN", "test-token");
+    db.insert(contacts).values({ id: "keep-1", name: "Still Real", props: {}, syncedAt: new Date() }).run();
+    // A transient blank page must not be read as "the portal is empty".
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ results: [] })));
+
+    await syncContacts();
+
+    expect(db.select().from(contacts).where(eq(contacts.id, "keep-1")).get()?.id).toBe("keep-1");
+  });
+});

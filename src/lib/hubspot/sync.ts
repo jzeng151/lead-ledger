@@ -116,6 +116,7 @@ export async function syncContacts(): Promise<{
   const MAX_PAGES = 50;
   const results: HubspotResult[] = [];
   let after: string | undefined;
+  let complete = false;
   for (let page = 0; page < MAX_PAGES; page++) {
     const url = new URL("https://api.hubapi.com/crm/v3/objects/contacts");
     url.searchParams.set("properties", "firstname,lastname,email,jobtitle,company,website");
@@ -128,7 +129,10 @@ export async function syncContacts(): Promise<{
     const body = await res.json();
     results.push(...((body.results ?? []) as HubspotResult[]));
     after = body.paging?.next?.after;
-    if (!after) break;
+    if (!after) {
+      complete = true;
+      break;
+    }
   }
 
   const now = new Date();
@@ -162,5 +166,17 @@ export async function syncContacts(): Promise<{
       .onConflictDoUpdate({ target: contacts.id, set: row })
       .run();
   }
+  // Drop local rows for contacts HubSpot no longer returns: archived or deleted
+  // there, they otherwise sit in the queue, get re-scored, and a write-back
+  // PATCHes an id that no longer exists.
+  //
+  // Only when the pull is known to be whole. A run that stopped at MAX_PAGES, or
+  // one that came back empty (a transient blank page), does not mean those
+  // contacts are gone, and treating it that way would delete the portal.
+  if (complete && results.length) {
+    const live = new Set(results.map((r) => r.id));
+    for (const c of db.select({ id: contacts.id }).from(contacts).all()) if (!live.has(c.id)) purgeContact(c.id);
+  }
+
   return { synced: results.length, source: "hubspot", domainChanged };
 }

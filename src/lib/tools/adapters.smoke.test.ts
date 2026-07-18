@@ -25,6 +25,22 @@ beforeAll(() => {
   if (!seeded) {
     execSync("npm run db:push && npm run seed", { stdio: "inherit" });
   }
+  // Ensure the one row this file reads, rather than inferring it from "some
+  // contact exists": a sync test in the same worker legitimately purges contacts
+  // HubSpot no longer returns, which can include this one.
+  db.insert(schema.contacts)
+    .values({
+      id: "c-northwind",
+      name: "Priya Nair",
+      email: "priya@northwind.dev",
+      title: "VP Engineering",
+      companyName: "Northwind Labs",
+      companyDomain: "northwind.dev",
+      props: {},
+      syncedAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .run();
 });
 
 describe("enrichment adapters read fixtures on the mock path (no keys)", () => {
