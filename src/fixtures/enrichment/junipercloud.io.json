@@ -1,0 +1,7 @@
+{
+  "company": { "industry": "software", "headcount": 95, "headcountGrowth90d": 0.24, "revenueBand": "$10M-$50M", "hq": "Portland", "ownership": "private", "fundingTotal": "$26M", "latestRound": "Series A", "latestRoundDate": "2026-05-28" },
+  "person": { "title": "Staff Engineer", "seniority": "IC", "department": "Engineering", "tenureMonths": 20, "jobChange": false, "buyingRole": "champion", "emailVerified": true },
+  "tech": { "technologies": ["Next.js","Go","AWS","Kubernetes"], "competitorPresent": true, "competitorEvidence": "single job posting", "githubOrg": "junipercloud", "statusPage": true, "recentIncident": true },
+  "news": [{ "date": "2026-05-28", "type": "funding", "summary": "Series A $26M", "source": "https://example.com/juniper-series-a", "talkingPoint": "Series A in January - is New Relic locked in or still open?", "fresh": true }],
+  "engagement": { "topActions": ["pricing_page_view","email_open"], "recencyDays": 9, "rawSignals": [{ "type": "pricing_page_view", "count": 2 }, { "type": "email_open", "count": 3 }], "attributionUncertain": true }
+}

@@ -1,0 +1,7 @@
+{
+  "company": { "industry": "logistics", "headcount": 450, "headcountGrowth90d": 0.0, "revenueBand": "$50M-$100M", "hq": "Memphis", "ownership": "private", "fundingTotal": null, "latestRound": null, "latestRoundDate": null },
+  "person": { "title": "Operations Coordinator", "seniority": "Manager", "department": "Operations", "tenureMonths": 40, "jobChange": false, "buyingRole": "none", "emailVerified": true },
+  "tech": { "technologies": ["WordPress"], "competitorPresent": false, "competitorEvidence": null, "githubOrg": null, "statusPage": false, "recentIncident": false },
+  "news": [],
+  "engagement": { "topActions": [], "recencyDays": 120, "rawSignals": [], "attributionUncertain": false }
+}

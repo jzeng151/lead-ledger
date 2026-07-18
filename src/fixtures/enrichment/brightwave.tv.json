@@ -1,0 +1,7 @@
+{
+  "company": { "industry": "internet", "headcount": 250, "headcountGrowth90d": 0.05, "revenueBand": "$50M-$100M", "hq": "Chicago", "ownership": "private", "fundingTotal": "$120M", "latestRound": "Series B", "latestRoundDate": "2025-04-05" },
+  "person": { "title": "Engineering Manager", "seniority": "Manager", "department": "Engineering", "tenureMonths": 40, "jobChange": false, "buyingRole": "champion", "emailVerified": true },
+  "tech": { "technologies": ["React","Java","AWS","Datadog"], "competitorPresent": true, "competitorEvidence": "detected on live site (Datadog RUM script)", "githubOrg": "brightwave", "statusPage": true, "recentIncident": false },
+  "news": [{ "date": "2025-04-05", "type": "funding", "summary": "Series B $60M", "source": "https://example.com/brightwave-series-b", "talkingPoint": "Series B over a year ago - likely re-evaluating tooling contracts", "fresh": false }],
+  "engagement": { "topActions": ["email_open"], "recencyDays": 58, "rawSignals": [{ "type": "email_open", "count": 2 }], "attributionUncertain": false }
+}

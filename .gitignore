@@ -18,4 +18,6 @@ data.sqlite-*
 # misc
 .DS_Store
 *.pem
+*.tsbuildinfo
 npm-debug.log*
+.gstack/

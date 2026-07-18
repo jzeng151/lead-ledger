@@ -1,0 +1,7 @@
+{
+  "company": { "industry": "saas", "headcount": 140, "headcountGrowth90d": 0.30, "revenueBand": "$10M-$50M", "hq": "Atlanta", "ownership": "private", "fundingTotal": "$40M", "latestRound": "Series B", "latestRoundDate": "2026-06-25" },
+  "person": { "title": "Head of Platform", "seniority": "Director", "department": "Engineering", "tenureMonths": 1, "jobChange": true, "buyingRole": "champion", "emailVerified": false },
+  "tech": { "technologies": ["React","Node","AWS","Vercel","Prometheus"], "competitorPresent": false, "competitorEvidence": null, "githubOrg": "atlasfreight", "statusPage": true, "recentIncident": false },
+  "news": [{ "date": "2026-06-25", "type": "funding", "summary": "Series B $30M", "source": "https://example.com/atlas-series-b", "talkingPoint": "Series B in April and a new platform lead - prime timing", "fresh": true }],
+  "engagement": { "topActions": ["pricing_page_view","email_open"], "recencyDays": 15, "rawSignals": [{ "type": "pricing_page_view", "count": 1 }, { "type": "email_open", "count": 2 }], "attributionUncertain": false }
+}

@@ -1,0 +1,7 @@
+{
+  "company": { "industry": "software", "headcount": 85, "headcountGrowth90d": 0.22, "revenueBand": "$5M-$20M", "hq": "Austin", "ownership": "private", "fundingTotal": "$18M", "latestRound": "Series A", "latestRoundDate": "2026-06-08" },
+  "person": { "title": "CTO", "seniority": "C-Level", "department": "Engineering", "tenureMonths": 30, "jobChange": false, "buyingRole": "economic", "emailVerified": true },
+  "tech": { "technologies": ["React","Go","AWS","Kubernetes"], "competitorPresent": false, "competitorEvidence": null, "githubOrg": "cobaltsys", "statusPage": true, "recentIncident": false },
+  "news": [{ "date": "2026-06-08", "type": "funding", "summary": "Series A $18M led by Foundry", "source": "https://example.com/cobalt-series-a", "talkingPoint": "Series A in Feb - is observability on the roadmap as you scale?", "fresh": true }],
+  "engagement": { "topActions": ["email_open"], "recencyDays": 64, "rawSignals": [{ "type": "email_open", "count": 1 }], "attributionUncertain": false }
+}
