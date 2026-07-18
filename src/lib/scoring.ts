@@ -12,7 +12,11 @@ export function computeEngagement(e: any, icp: IcpConfig) {
   const weightOf = (a: string) => (a === "demo_request" ? 30 : a === "pricing_page_view" ? 20 : 8);
   const base = Math.min(100, (e?.topActions ?? []).reduce((s: number, a: string) => s + weightOf(a), 0));
   const months = (e?.recencyDays ?? 999) / 30;
-  const decay = Math.pow(1 - icp.engagementDecayPerMonth, months);
+  // Clamp the dial: the ICP editor accepts any number, and a decay above 1 makes
+  // the base negative, which Math.pow turns into NaN for fractional months. That
+  // NaN would then flow through engagement into priority.
+  const perMonth = Math.min(1, Math.max(0, icp.engagementDecayPerMonth));
+  const decay = Math.pow(1 - perMonth, months);
   return Math.round(base * decay);
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { score, computeTiming, classifyTrigger } from "./scoring";
+import { score, computeTiming, classifyTrigger, computeEngagement } from "./scoring";
 import { DEFAULT_ICP } from "./icp";
 
 const fit = (v: number) => ({ firmographic: v, role: v, technographic: v, disqualified: false, conflicts: [] });
@@ -130,5 +130,24 @@ describe("computeTiming / classifyTrigger", () => {
     expect(computeTiming({ events: [{ type: "layoffs", fresh: true }] }, DEFAULT_ICP)).toBeCloseTo(-0.3);
     expect(computeTiming({ events: [{ type: "funding", fresh: true }, { type: "funding", fresh: true }] }, DEFAULT_ICP)).toBe(1);
     expect(computeTiming({ events: [] }, DEFAULT_ICP)).toBe(0);
+  });
+});
+
+describe("computeEngagement: decay dial is clamped", () => {
+  it("survives an out-of-range engagementDecayPerMonth from the ICP editor", () => {
+    // A decay above 1 makes the pow base negative; fractional months then yield
+    // NaN, which used to flow straight through engagement into priority.
+    const broken = { ...DEFAULT_ICP, engagementDecayPerMonth: 1.5 };
+    const e = { topActions: ["demo_request"], recencyDays: 45 };
+    expect(computeEngagement(e, broken)).toBe(0);
+
+    const r = score({ icpFit: fit(0.9), engagement: e, verification: noVerif }, broken);
+    expect(Number.isNaN(r.engagement)).toBe(false);
+    expect(Number.isNaN(r.priority)).toBe(false);
+  });
+
+  it("a negative decay dial does not inflate engagement", () => {
+    const e = { topActions: ["demo_request"], recencyDays: 30 };
+    expect(computeEngagement(e, { ...DEFAULT_ICP, engagementDecayPerMonth: -2 })).toBe(30);
   });
 });
