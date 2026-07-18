@@ -10,12 +10,21 @@ import { AsyncLocalStorage } from "node:async_hooks";
  * empty results or errors. Sync and write-back read HUBSPOT_TOKEN directly and
  * are unaffected, so demo mode still writes to real HubSpot.
  */
+/**
+ * Should the real provider be used for this key? Demo mode forces fixtures even
+ * when a key is present, so a showcase run stays deterministic without anyone
+ * having to unset their credentials.
+ */
+export function useRealProvider(key: string | undefined): boolean {
+  return Boolean(key) && process.env.LEAD_LEDGER_DEMO !== "1";
+}
+
 export function pickImpl<A extends unknown[], R>(
   key: string | undefined,
   real: (...a: A) => Promise<R>,
   mock: (...a: A) => Promise<R>,
 ) {
-  const useReal = Boolean(key) && process.env.LEAD_LEDGER_DEMO !== "1";
+  const useReal = useRealProvider(key);
   return (...a: A) => (useReal ? real(...a) : mock(...a));
 }
 

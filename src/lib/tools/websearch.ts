@@ -1,4 +1,4 @@
-import { loadFixture, fetchWithTimeout } from "./adapter";
+import { loadFixture, fetchWithTimeout, useRealProvider } from "./adapter";
 import type { NewsItem } from "./gdelt";
 
 function mapSerp(data: any): NewsItem[] {
@@ -28,7 +28,11 @@ function domainFromQuery(q: string): string {
 // domain (passed explicitly, else extracted from the query).
 export async function webSearch(query: string, domain?: string): Promise<{ events: NewsItem[] }> {
   const key = process.env.SERPAPI_KEY;
-  if (key) {
+  // Demo mode pins this to the fixture. webSearch builds its own client rather
+  // than going through pickImpl, so it has to apply the same gate: otherwise a
+  // showcase run with a retained SERPAPI_KEY pulls live results for fixture
+  // domains and the timing, rationale, and score stop being reproducible.
+  if (useRealProvider(key)) {
     try {
       const res = await fetchWithTimeout(
         `https://serpapi.com/search.json?q=${encodeURIComponent(query)}&api_key=${key}`,
