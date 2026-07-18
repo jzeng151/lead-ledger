@@ -12,6 +12,54 @@ const { scores, runs, writebacks } = schema;
 // How long a claimed write stays claimed before another request may take it over.
 const WRITE_CLAIM_MS = 2 * 60 * 1000;
 
+type LatestScore = {
+  priority: number;
+  grade: string;
+  rationale: string | null;
+  nextStep: string | null;
+  needsReview: boolean;
+};
+
+/**
+ * The contact's current verdict: the score whose run started most recently,
+ * matching the queue and detail routes. startedAt is stored at second
+ * resolution, so a fast re-run can tie with the score it replaces; runId carries
+ * the millisecond stamp and breaks the tie the right way.
+ *
+ * Read fresh each time it is needed: a re-run or a settings save can land while
+ * a HubSpot call is in flight.
+ */
+function latestScoreForContact(contactId: string): LatestScore | null {
+  const rows = db
+    .select({
+      runId: scores.runId,
+      priority: scores.priority,
+      grade: scores.grade,
+      rationale: scores.rationale,
+      nextStep: scores.nextStep,
+      needsReview: scores.needsReview,
+      startedAt: runs.startedAt,
+    })
+    .from(scores)
+    .innerJoin(runs, eq(scores.runId, runs.id))
+    .where(eq(scores.contactId, contactId))
+    .all();
+
+  let best: LatestScore | null = null;
+  let bestAt = -Infinity;
+  let bestRunId = "";
+  for (const s of rows) {
+    const t = s.startedAt ? s.startedAt.getTime() : 0;
+    if (t > bestAt || (t === bestAt && s.runId > bestRunId)) {
+      bestAt = t;
+      bestRunId = s.runId;
+      const { startedAt: _startedAt, runId: _runId, ...rest } = s;
+      best = rest;
+    }
+  }
+  return best;
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId } = await params;
 
@@ -33,42 +81,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
       return Response.json({ status: "skipped" });
     }
 
-    // Latest score for this contact = the score whose run started most recently,
-    // matching the list/detail routes' "latest" rule.
-    const scoreRows = db
-      .select({
-        runId: scores.runId,
-        priority: scores.priority,
-        grade: scores.grade,
-        rationale: scores.rationale,
-        nextStep: scores.nextStep,
-        needsReview: scores.needsReview,
-        startedAt: runs.startedAt,
-      })
-      .from(scores)
-      .innerJoin(runs, eq(scores.runId, runs.id))
-      .where(eq(scores.contactId, contactId))
-      .all();
-
-    let score:
-      | { priority: number; grade: string; rationale: string | null; nextStep: string | null; needsReview: boolean }
-      | null = null;
-    let latestStartedAt = -Infinity;
-    let latestRunId = "";
-    for (const s of scoreRows) {
-      const t = s.startedAt ? s.startedAt.getTime() : 0;
-      // startedAt is stored at second resolution, so a fast re-run can tie with
-      // the score it replaces and leave the winner down to row order. runId
-      // carries the millisecond stamp, which breaks the tie the right way; without
-      // it an approval right after a re-run could send the previous verdict.
-      if (t > latestStartedAt || (t === latestStartedAt && s.runId > latestRunId)) {
-        latestStartedAt = t;
-        latestRunId = s.runId;
-        const { startedAt: _startedAt, runId: _runId, ...rest } = s;
-        score = rest;
-      }
-    }
-
+    const score = latestScoreForContact(contactId);
     if (!score) return Response.json({ error: "not scored" }, { status: 400 });
 
     // A re-run in flight has no score row yet, so the lookup above returns the
@@ -131,10 +144,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
       // leaves a claimed row alone, so reconcile here: if the score moved while
       // we were writing, HubSpot now holds the old numbers, and the row must go
       // back to pending rather than claim the contact is synced.
-      const current = db.select().from(scores).where(eq(scores.runId, latestRunId)).get();
-      if (current && (current.priority !== score.priority || current.grade !== score.grade)) {
+      // Compare the review flag too, not just the numbers: a save that only moves
+      // the review band leaves the priority alone but newly flags the lead, and
+      // "written" outranks needsReview in the queue, so recording this approval
+      // would hide it as synced.
+      const newest = latestScoreForContact(contactId);
+      const moved =
+        newest &&
+        (newest.priority !== score.priority ||
+          newest.grade !== score.grade ||
+          Boolean(newest.needsReview) !== Boolean(score.needsReview));
+      if (newest && moved) {
         db.update(writebacks)
-          .set({ status: "pending", approvedAt: null, writtenAt: null })
+          .set({
+            status: "pending",
+            // Stage the current verdict, not the one just sent: a re-run may have
+            // finished while this call was out.
+            payload: {
+              properties: { lead_priority_score: newest.priority, lead_grade: newest.grade },
+              note: newest.rationale ?? "",
+            },
+            approvedAt: null,
+            writtenAt: null,
+          })
           .where(eq(writebacks.contactId, contactId))
           .run();
         return Response.json({ ...r, restaged: true });
