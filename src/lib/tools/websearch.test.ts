@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { webSearch } from "./websearch";
+import { ageInDays, webSearch } from "./websearch";
 
 // No SERPAPI_KEY in the test env, so these exercise the fixture path.
 describe("webSearch fixture resolution", () => {
@@ -34,5 +34,37 @@ describe("webSearch demo mode", () => {
     await webSearch("northwind.dev funding");
 
     expect(spy).not.toHaveBeenCalled(); // a live lookup would break repeatable demo scoring
+  });
+});
+
+describe("live result freshness", () => {
+  it("reads absolute and relative dates, and treats an unreadable one as stale", () => {
+    const now = Date.parse("2026-07-18T00:00:00Z");
+    expect(ageInDays("Jul 8, 2026", now)).toBeCloseTo(10, 0);
+    expect(ageInDays("3 days ago", now)).toBe(3);
+    expect(ageInDays("2 months ago", now)).toBe(60);
+    expect(ageInDays("last spring", now)).toBeNull();
+    expect(ageInDays(undefined, now)).toBeNull();
+  });
+
+  it("only marks a recent result fresh", async () => {
+    vi.stubEnv("SERPAPI_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          news_results: [
+            { title: "Raised Series B", link: "https://n/1", date: "5 days ago" },
+            { title: "Raised Series A", link: "https://n/2", date: "14 months ago" },
+            { title: "Undated", link: "https://n/3" },
+          ],
+        }),
+      ),
+    );
+
+    const { events } = await webSearch("northwind.dev funding");
+
+    // A year-old round must not claim the same timing lift as last week's.
+    expect(events.map((e) => e.fresh)).toEqual([true, false, false]);
   });
 });
