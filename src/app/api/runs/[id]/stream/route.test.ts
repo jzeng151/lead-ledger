@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { eq } from "drizzle-orm";
 
 import { db, schema } from "@/db";
 import { GET } from "./route";
@@ -25,6 +26,10 @@ describe("run stream for a run nothing is driving", () => {
     expect(body).toContain("agent_error");
     expect(body).toContain("no longer being processed");
     expect(body).toContain("stream_end");
+
+    // And the row is reaped: telling the client to start a new run while the row
+    // still says running would make Re-run hand back this dead id instead.
+    expect(db.select().from(schema.runs).where(eq(schema.runs.id, "st-orphan")).get()?.status).toBe("error");
   });
 
   it("replays a finished run and ends cleanly", async () => {

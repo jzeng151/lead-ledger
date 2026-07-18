@@ -42,6 +42,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         // this run is gone (a restart, a killed background task). stream_end alone
         // reads as a successful finish in the live view, which would show the
         // contact as done with no score and no failure.
+        //
+        // Reap it here as well. Telling the client to start a new run while the
+        // row still says running is a contradiction: the re-run guard reads that
+        // row and would hand back this dead runId until the staleness cutoff.
+        db.update(schema.runs).set({ status: "error", finishedAt: new Date() }).where(eq(schema.runs.id, runId)).run();
         send({
           agent: "orchestrator",
           type: "agent_error",
