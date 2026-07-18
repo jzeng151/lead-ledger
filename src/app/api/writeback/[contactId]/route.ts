@@ -18,6 +18,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
     // Persist a skip, so the decision survives a refresh and the contact stops
     // being offered as pending work in the queue and batch approval.
     if (body.skip === true) {
+      // Same conflict as approval: the finishing run upserts this row back to
+      // pending, so a skip recorded against the old score would silently vanish.
+      if (activeRunForContact(contactId))
+        return Response.json({ error: "scoring in progress, try again when the run finishes" }, { status: 409 });
       const now = new Date();
       db.insert(writebacks)
         .values({ contactId, status: "skipped", payload: null, approvedAt: now })
