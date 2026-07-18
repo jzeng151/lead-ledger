@@ -40,12 +40,20 @@ export const ContactFindings = z.object({
 export const TechFindings = z.object({
   technologies: z.array(z.string()).default([]),
   competitorPresent: field(z.boolean()).optional(),
-  competitorEvidence: field(z.string()).optional(),
+  // nullish, not optional: detect_tech_stack returns competitorEvidence: null on
+  // the ordinary no-competitor path and the shared contract tells agents to use
+  // null for missing data, so an agent forwarding the tool result verbatim would
+  // otherwise fail validation and abort the whole run.
+  competitorEvidence: field(z.string()).nullish(),
   // Whether the domain actually served a page over HTTPS. A field() so the result
   // is citeable and reaches the report rather than dying in a free-text note.
   httpsLive: field(z.boolean()).optional(),
   complementSignals: z.array(z.string()).default([]),
-  notes: z.string().optional().default(""),
+  // Same reason, and the transform keeps the string contract downstream.
+  notes: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? ""),
 });
 
 // 4. News / Trigger Signals
