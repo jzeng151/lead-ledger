@@ -23,9 +23,7 @@ export function WritebackPanel({
   onApproved?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  // dryRun is null for a decision restored from the DB: the row records that the
-  // write happened, not whether it went to HubSpot or was a dry run.
-  const [result, setResult] = useState<{ dryRun: boolean | null } | null>(
+  const [result, setResult] = useState<{ dryRun: boolean } | null>(
     writebackStatus === "written" ? { dryRun: false } : writebackStatus === "dry_run" ? { dryRun: true } : null,
   );
   const [skipped, setSkipped] = useState(writebackStatus === "skipped");
@@ -127,22 +125,31 @@ export function WritebackPanel({
         </p>
       ) : null}
 
-      {result ? (
+      {result && !result.dryRun ? (
         <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-[var(--tone-emerald-fg)]">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--tone-emerald-fg)]" />
-          {result.dryRun === null ? "Written" : result.dryRun ? "Written (dry run)" : "Written to HubSpot"}
+          Written to HubSpot
         </p>
       ) : skipped ? (
         <p className="mt-4 text-sm text-subtle">Skipped.</p>
       ) : (
-        <div className="mt-4 flex items-center gap-2.5">
-          <button onClick={handleApprove} disabled={busy} className="btn btn-primary">
-            {busy ? "Writing..." : "Approve & write"}
-          </button>
-          <button onClick={handleSkip} disabled={busy} className="btn btn-ghost">
-            Skip
-          </button>
-        </div>
+        <>
+          {/* A dry run reached nothing, so the buttons stay: configure a token
+              and the same approval can be sent for real. */}
+          {result?.dryRun ? (
+            <p className="mt-4 text-sm text-subtle">
+              Approved as a dry run. No HUBSPOT_TOKEN was set, so nothing was sent.
+            </p>
+          ) : null}
+          <div className="mt-4 flex items-center gap-2.5">
+            <button onClick={handleApprove} disabled={busy} className="btn btn-primary">
+              {busy ? "Writing..." : result?.dryRun ? "Retry write" : "Approve & write"}
+            </button>
+            <button onClick={handleSkip} disabled={busy} className="btn btn-ghost">
+              Skip
+            </button>
+          </div>
+        </>
       )}
 
       {error ? <p className="mt-3 text-sm text-[var(--tone-rose-fg)]">{error}</p> : null}
