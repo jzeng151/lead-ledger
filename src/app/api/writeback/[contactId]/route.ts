@@ -8,7 +8,7 @@ import { rejectCrossSite } from "@/lib/sameOrigin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const { scores, runs, writebacks } = schema;
+const { contacts, scores, runs, writebacks } = schema;
 
 // How long a claimed write stays claimed before another request may take it over.
 const WRITE_CLAIM_MS = 2 * 60 * 1000;
@@ -70,6 +70,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
   try {
     const body = (await req.json().catch(() => ({}))) as { batch?: boolean; skip?: boolean };
 
+    // A stale page can act on a contact a sync has since purged. Recording a
+    // decision for it leaves a write-back row with nothing behind it, and if
+    // HubSpot restores that id the orphan row (skip in particular) silently
+    // governs the restored lead.
+    if (!db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, contactId)).get())
+      return Response.json({ error: "contact not found" }, { status: 404 });
+
     // Persist a skip, so the decision survives a refresh and the contact stops
     // being offered as pending work in the queue and batch approval.
     if (body.skip === true) {
@@ -127,12 +134,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
     }
 
     // Claim the row before the HubSpot call. Two approvals for the same contact
-    // (two tabs, a double submit) both read this row as pending and both reach
-    // the write, posting duplicate timeline notes for one score. The conditional
-    // update is the claim: only one request can win it. A claim older than the
-    // window is reclaimable, so a process that dies mid-write does not leave the
-    // contact permanently unapprovable.
-    if (prior) {
+    // (two tabs, a double submit) would otherwise both read it as pending, both
+    // reach the write, and post duplicate timeline notes for one score. Only one
+    // request can win the claim; a claim older than the window is reclaimable, so
+    // a process that dies mid-write does not strand the contact.
+    //
+    // A contact can also reach approval with no staged row at all (an old run
+    // finishes after a newer one and declines to stage, then that newer run
+    // errors). Creating the row is itself the claim there: the insert either wins
+    // or conflicts, and a conflict falls through to the same update-claim.
+    const created = prior
+      ? { changes: 0 }
+      : db
+          .insert(writebacks)
+          .values({ contactId, status: "writing", payload: null, approvedAt: new Date() })
+          .onConflictDoNothing()
+          .run();
+
+    if (created.changes === 0) {
       const reclaimable = new Date(Date.now() - WRITE_CLAIM_MS);
       const claimed = db
         .update(writebacks)
@@ -188,12 +207,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
       }
       return Response.json({ ...r });
     } catch (e) {
-      // Put the row back the way it was so a failed write does not strand it.
+      // Put the row back the way it was so a failed write does not strand it,
+      // or remove it entirely if this request is what created it.
       if (prior)
         db.update(writebacks)
           .set({ status: prior.status, approvedAt: prior.approvedAt })
           .where(eq(writebacks.contactId, contactId))
           .run();
+      else db.delete(writebacks).where(eq(writebacks.contactId, contactId)).run();
       throw e;
     }
   } catch (err) {

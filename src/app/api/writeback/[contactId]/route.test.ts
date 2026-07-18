@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { eq } from "drizzle-orm";
 
 import { db, schema } from "@/db";
 import { POST } from "./route";
@@ -132,5 +133,35 @@ describe("skip versus a claimed write", () => {
     // The in-flight write finishes by upserting "written", which would bury the
     // skip and show the contact as synced against the rep's decision.
     expect(res.status).toBe(409);
+  });
+});
+
+describe("write-backs for a purged contact", () => {
+  it("refuses a skip for a contact that no longer exists", async () => {
+    const res = await POST(
+      new Request("http://test/api/writeback/wb-ghost", { method: "POST", body: JSON.stringify({ skip: true }) }),
+      { params: Promise.resolve({ contactId: "wb-ghost" }) },
+    );
+
+    expect(res.status).toBe(404);
+    // An orphan skip would silently govern the lead if HubSpot restored that id.
+    expect(db.select().from(schema.writebacks).where(eq(schema.writebacks.contactId, "wb-ghost")).get()).toBeUndefined();
+  });
+});
+
+describe("concurrent approvals with nothing staged", () => {
+  it("still lets only one write through", async () => {
+    const now = new Date(Date.now() - 60_000);
+    db.insert(contacts).values({ id: "wbn-c", name: "No Row", props: {}, syncedAt: now }).run();
+    db.insert(runs).values({ id: "wbn-run", contactId: "wbn-c", status: "scored", startedAt: now }).run();
+    db.insert(scores)
+      .values({ runId: "wbn-run", contactId: "wbn-c", fit: 80, engagement: 0, priority: 80, grade: "B", needsReview: false, reviewReasons: [], citations: [] })
+      .run();
+    // Deliberately no writebacks row: an old run can decline to stage and the
+    // newer one can then error.
+
+    const [a, b] = await Promise.all([approve("wbn-c"), approve("wbn-c")]);
+
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
   });
 });
