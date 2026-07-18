@@ -148,7 +148,17 @@ export async function runContact(
     const gate = checkCitations(synth.citations ?? [], mergeSources(partials), rejected);
     const cleanRationale = sanitizeRationale(synth.rationale);
 
-    bus.emit({ agent: "scorer", type: "score_ready", payload: s });
+    // The gate strips a citation whose claim verification rejected, or that points
+    // at no real dossier field, but the rationale prose still asserts it. Flag that
+    // for review instead of quietly showing an unbacked sentence to the rep.
+    const reviewReasons = [...s.reviewReasons];
+    if (gate.stripped.length)
+      reviewReasons.push(
+        `unverified claims in rationale: ${gate.stripped.length} citation(s) stripped (${[...new Set(gate.stripped)].join(", ")})`,
+      );
+    const needsReview = reviewReasons.length > 0;
+
+    bus.emit({ agent: "scorer", type: "score_ready", payload: { ...s, needsReview, reviewReasons } });
 
     const merged = { ...partials, icpFit };
     db.insert(dossiers)
@@ -164,8 +174,8 @@ export async function runContact(
       timing: s.timing,
       priority: s.priority,
       grade: s.grade,
-      needsReview: s.needsReview,
-      reviewReasons: s.reviewReasons,
+      needsReview,
+      reviewReasons,
       rationale: cleanRationale,
       nextStep: synth.nextStep ?? null,
       citations: gate.kept,
