@@ -74,7 +74,19 @@ function redact(url: string): string {
 const REL = "src/fixtures/enrichment";
 const dir = path.join(process.cwd(), REL);
 
+// The fixture key is model-supplied (it comes from CRM data and tool arguments),
+// so it must not be able to escape the fixture directory: "../../../package"
+// would otherwise resolve and parse any JSON file in the workspace. Allow only a
+// host-shaped token.
+function isSafeFixtureKey(domain: string): boolean {
+  return /^[a-z0-9][a-z0-9.-]*$/i.test(domain) && !domain.includes("..");
+}
+
 export function loadFixture(domain: string): Record<string, any> {
+  if (!isSafeFixtureKey(domain)) {
+    trace({ query: domain, mode: "fixture", location: REL, outcome: "empty", detail: "rejected fixture key" });
+    return {};
+  }
   const f = path.join(dir, `${domain}.json`);
   const exists = fs.existsSync(f);
   const data = exists ? JSON.parse(fs.readFileSync(f, "utf8")) : {};

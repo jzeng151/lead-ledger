@@ -20,3 +20,17 @@ describe("loadFixture", () => {
     expect(loadFixture("does-not-exist")).toEqual({});
   });
 });
+
+describe("loadFixture key safety", () => {
+  it("refuses a path-traversal key instead of reading JSON outside the fixture dir", () => {
+    // The domain reaching a tool is model-supplied, so it must not be able to
+    // address package.json or any other JSON in the workspace.
+    expect(loadFixture("../../../package")).toEqual({});
+    expect(loadFixture("../package")).toEqual({});
+    expect(loadFixture("/etc/passwd")).toEqual({});
+  });
+
+  it("still reads an ordinary domain fixture", () => {
+    expect(Object.keys(loadFixture("northwind.dev")).length).toBeGreaterThan(0);
+  });
+});
