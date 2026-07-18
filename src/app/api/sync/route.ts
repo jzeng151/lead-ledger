@@ -15,8 +15,9 @@ export async function POST() {
   // dashboard can show, instead of an opaque 500 the client reads as success.
   let synced: number;
   let source: "hubspot" | "fixtures";
+  let domainChanged: string[];
   try {
-    ({ synced, source } = await syncContacts());
+    ({ synced, source, domainChanged } = await syncContacts());
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
   }
@@ -36,7 +37,10 @@ export async function POST() {
   // strand its contact as permanently unsyncable.
   const inFlight = new Set(activeRuns().map((r) => r.contactId));
 
-  const pending = contactRows.filter((c) => !scored.has(c.id) && !inFlight.has(c.id));
+  // A contact whose domain just changed is re-queued even though it has a score:
+  // that score was computed against a different company.
+  const restale = new Set(domainChanged);
+  const pending = contactRows.filter((c) => (!scored.has(c.id) || restale.has(c.id)) && !inFlight.has(c.id));
 
   // Cap fan-out: run the unscored contacts in small sequential chunks so a sync
   // never fires ~80 Anthropic runs at once. Detached from the response (like the

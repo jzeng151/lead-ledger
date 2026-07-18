@@ -98,9 +98,14 @@ type HubspotResult = {
  * token this is a no-op: the seeded fixtures already stand in for a sync, so we
  * return source "fixtures" rather than throwing.
  */
-export async function syncContacts(): Promise<{ synced: number; source: "hubspot" | "fixtures" }> {
+export async function syncContacts(): Promise<{
+  synced: number;
+  source: "hubspot" | "fixtures";
+  /** Contacts whose company domain changed, so their stored dossier is now for the wrong company. */
+  domainChanged: string[];
+}> {
   const token = process.env.HUBSPOT_TOKEN;
-  if (!token) return { synced: 0, source: "fixtures" };
+  if (!token) return { synced: 0, source: "fixtures", domainChanged: [] };
 
   // Page through the portal. HubSpot caps a page at 100, so a single fetch would
   // silently drop every contact past the first 100 even though the Sync button
@@ -124,6 +129,7 @@ export async function syncContacts(): Promise<{ synced: number; source: "hubspot
   }
 
   const now = new Date();
+  const domainChanged: string[] = [];
   for (const r of results) {
     const p = r.properties ?? {};
     // Drop any prior row for the same person (matched by email) under a different
@@ -140,10 +146,18 @@ export async function syncContacts(): Promise<{ synced: number; source: "hubspot
       props: p as Record<string, unknown>,
       syncedAt: now,
     };
+    // Every retrieval agent keys its tools by domain, so a changed domain means
+    // the stored dossier describes a different company. Report it: the caller
+    // re-queues those contacts rather than serving the old score forever. Other
+    // field edits (title, company name) are deliberately not treated this way,
+    // to keep a routine sync from re-running the whole portal.
+    const before = db.select({ companyDomain: contacts.companyDomain }).from(contacts).where(eq(contacts.id, r.id)).get();
+    if (before && before.companyDomain !== row.companyDomain) domainChanged.push(r.id);
+
     db.insert(contacts)
       .values(row)
       .onConflictDoUpdate({ target: contacts.id, set: row })
       .run();
   }
-  return { synced: results.length, source: "hubspot" };
+  return { synced: results.length, source: "hubspot", domainChanged };
 }
