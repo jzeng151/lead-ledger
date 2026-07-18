@@ -103,8 +103,7 @@ export default function Home() {
       const targets = rows.filter(isBatchApprovable);
       // fetch resolves on a 4xx/5xx, so a rejected HubSpot write is only visible
       // through res.ok. Without this check the batch reports success while some
-      // contacts were never written. A 409 is the server's needs-review guard
-      // doing its job, not a failure.
+      // contacts were never written.
       const results = await Promise.all(
         targets.map(async (r) => {
           try {
@@ -113,7 +112,15 @@ export default function Home() {
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ batch: true }),
             });
-            return res.ok || res.status === 409 ? null : r.name;
+            if (res.ok) return null;
+            // 409 covers two cases: the needs-review guard doing its job (the
+            // batch is meant to skip those), and the contact being re-scored
+            // right now, which is a real miss the rep needs to know about.
+            if (res.status === 409) {
+              const body = await res.json().catch(() => null);
+              return /needs manual review/i.test(body?.error ?? "") ? null : r.name;
+            }
+            return r.name;
           } catch {
             return r.name;
           }
