@@ -4,7 +4,34 @@ import { db, schema } from "../db";
 import { score } from "./scoring";
 import type { IcpConfig } from "./icp";
 
-const { dossiers, scores } = schema;
+const { dossiers, scores, writebacks, runs } = schema;
+
+type WritebackPayload = { properties?: { lead_priority_score?: number; lead_grade?: string }; note?: string };
+
+/**
+ * Keep the staged write-back in step with a re-scored contact.
+ *
+ * A pending payload is refreshed in place, so approving after a settings change
+ * writes the current numbers rather than the ones computed under the old dials.
+ * A contact that was already written is reopened as pending when its values
+ * moved, because HubSpot still holds the old priority and grade and the queue
+ * would otherwise treat it as synced and hide approval. A skip is left alone:
+ * that is a human decision, not a stale score.
+ */
+function syncWriteback(contactId: string, priority: number, grade: string) {
+  const wb = db.select().from(writebacks).where(eq(writebacks.contactId, contactId)).get();
+  if (!wb || wb.status === "skipped") return;
+
+  const prior = (wb.payload ?? {}) as WritebackPayload;
+  const unchanged = prior.properties?.lead_priority_score === priority && prior.properties?.lead_grade === grade;
+  if (unchanged) return;
+
+  const payload: WritebackPayload = { properties: { lead_priority_score: priority, lead_grade: grade }, note: prior.note ?? "" };
+  db.update(writebacks)
+    .set({ status: "pending", payload, approvedAt: null, writtenAt: null })
+    .where(eq(writebacks.contactId, contactId))
+    .run();
+}
 
 /**
  * Recompute one run's score from its persisted dossier. Every input score() needs
@@ -45,6 +72,13 @@ export function scoreFromDossier(
  * so recomputing alone would silently drop that warning.
  */
 export function rescoreAll(icp: IcpConfig): number {
+  // When a contact has several runs, only its newest one may drive the staged
+  // write-back; an older run's re-scored values must not overwrite it.
+  const startedAt = new Map(
+    db.select({ id: runs.id, startedAt: runs.startedAt }).from(runs).all().map((r) => [r.id, r.startedAt?.getTime() ?? 0]),
+  );
+  const newest = new Map<string, { at: number; priority: number; grade: string }>();
+
   let updated = 0;
   for (const d of db.select().from(dossiers).all()) {
     const existing = db.select().from(scores).where(eq(scores.runId, d.runId)).get();
@@ -68,7 +102,13 @@ export function rescoreAll(icp: IcpConfig): number {
       })
       .where(eq(scores.runId, d.runId))
       .run();
+
+    const at = startedAt.get(d.runId) ?? 0;
+    const seen = newest.get(existing.contactId);
+    if (!seen || at >= seen.at) newest.set(existing.contactId, { at, priority: s.priority, grade: s.grade });
     updated++;
   }
+
+  for (const [contactId, v] of newest) syncWriteback(contactId, v.priority, v.grade);
   return updated;
 }

@@ -5,7 +5,7 @@ import { db, schema } from "../db";
 import { DEFAULT_ICP } from "./icp";
 import { rescoreAll, scoreFromDossier } from "./rescore";
 
-const { runs, scores, dossiers } = schema;
+const { runs, scores, dossiers, writebacks } = schema;
 
 // A dossier shaped like what the orchestrator persists: per-agent partials, the
 // verification verdicts, and merged (which carries icpFit).
@@ -61,5 +61,49 @@ describe("rescoreAll", () => {
     expect(row!.grade).toBe("B"); // re-graded under the stricter band
     // the synthesis-stage warning survives a re-score
     expect((row!.reviewReasons as string[]).some((r) => r.startsWith("unverified claims in rationale"))).toBe(true);
+  });
+});
+
+describe("rescoreAll write-back sync", () => {
+  const now = new Date();
+
+  it("reopens a written contact whose values moved, and refreshes a pending payload", () => {
+    db.insert(runs).values({ id: "wb-run", contactId: "wb-c", status: "scored", startedAt: now }).run();
+    db.insert(dossiers).values({ runId: "wb-run", ...dossier }).run();
+    db.insert(scores)
+      .values({ runId: "wb-run", contactId: "wb-c", fit: 90, engagement: 0, timing: 80, priority: 100, grade: "A", needsReview: false, reviewReasons: [], citations: [] })
+      .run();
+    // Already written to HubSpot under the old dials.
+    db.insert(writebacks)
+      .values({
+        contactId: "wb-c",
+        status: "written",
+        payload: { properties: { lead_priority_score: 100, lead_grade: "A" }, note: "old note" },
+        approvedAt: now,
+        writtenAt: now,
+      })
+      .run();
+
+    rescoreAll({ ...DEFAULT_ICP, grades: { A: 95, B: 85, C: 75, D: 65 } });
+
+    const wb = db.select().from(writebacks).where(eq(writebacks.contactId, "wb-c")).get()!;
+    expect(wb.status).toBe("pending"); // HubSpot holds a stale grade, so approval reopens
+    expect((wb.payload as any).properties.lead_grade).toBe("B");
+    expect((wb.payload as any).note).toBe("old note"); // rationale is not recomputed here
+    expect(wb.writtenAt).toBeNull();
+  });
+
+  it("leaves a skipped contact alone", () => {
+    db.insert(runs).values({ id: "wb-skip-run", contactId: "wb-skip", status: "scored", startedAt: now }).run();
+    db.insert(dossiers).values({ runId: "wb-skip-run", ...dossier }).run();
+    db.insert(scores)
+      .values({ runId: "wb-skip-run", contactId: "wb-skip", fit: 90, engagement: 0, timing: 80, priority: 100, grade: "A", needsReview: false, reviewReasons: [], citations: [] })
+      .run();
+    db.insert(writebacks).values({ contactId: "wb-skip", status: "skipped", payload: null, approvedAt: now }).run();
+
+    rescoreAll({ ...DEFAULT_ICP, grades: { A: 95, B: 85, C: 75, D: 65 } });
+
+    // A skip is a human decision, not a stale score.
+    expect(db.select().from(writebacks).where(eq(writebacks.contactId, "wb-skip")).get()?.status).toBe("skipped");
   });
 });
