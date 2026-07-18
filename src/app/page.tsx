@@ -5,6 +5,15 @@ import { isBatchApprovable, type QueueRow } from "@/lib/queueModel";
 import { RankedQueue } from "./components/RankedQueue";
 import { StatusTabs, TABS, tabMatches, type Tab } from "./components/StatusTabs";
 
+function Spinner() {
+  return (
+    <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-90" d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function Home() {
   const [rows, setRows] = useState<QueueRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,17 +82,25 @@ export default function Home() {
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-fg">Prioritization queue</h1>
-          <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted">
-            Tracepoint sells an observability API to funded software startups. Every HubSpot contact is scored
-            on fit and engagement so a rep works the best lead first, not the freshest.
-          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2.5">
           <button onClick={handleBatchApprove} disabled={approving} className="btn btn-ghost">
-            {approving ? "Approving..." : "Approve scored"}
+            {approving ? (
+              <>
+                <Spinner /> Approving...
+              </>
+            ) : (
+              "Approve scored"
+            )}
           </button>
           <button onClick={handleSync} disabled={syncing} className="btn btn-primary">
-            {syncing ? "Syncing..." : "Sync contacts"}
+            {syncing ? (
+              <>
+                <Spinner /> Syncing...
+              </>
+            ) : (
+              "Sync contacts"
+            )}
           </button>
         </div>
       </header>
