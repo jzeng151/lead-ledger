@@ -11,13 +11,15 @@ export type QueueRow = {
   fit: number | null;
   priority: number | null;
   grade: string | null;
-  status: "new" | "scored" | "needs review" | "approved" | "synced" | "skipped";
+  status: "new" | "scored" | "needs review" | "approved" | "synced" | "skipped" | "dry run";
 };
 
 /**
  * Derive one contact's status. Precedence (highest first):
  *   - no score               -> "new"
  *   - writeback "written"     -> "synced"
+ *   - writeback "dry_run"     -> "dry run"   (approved, but nothing reached the
+ *                                             CRM, so it is not synced)
  *   - writeback "approved"    -> "approved"
  *   - writeback "skipped"     -> "skipped"   (an explicit human decision, so it
  *                                             outranks needs-review)
@@ -30,6 +32,7 @@ function deriveStatus(
 ): QueueRow["status"] {
   if (!score) return "new";
   if (writeback?.status === "written") return "synced";
+  if (writeback?.status === "dry_run") return "dry run";
   if (writeback?.status === "approved") return "approved";
   if (writeback?.status === "skipped") return "skipped";
   if (score.needsReview) return "needs review";

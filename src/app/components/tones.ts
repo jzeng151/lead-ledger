@@ -27,5 +27,7 @@ export const STATUS_TONE: Record<string, string> = {
   "needs review": TONE.amber,
   approved: TONE.emerald,
   synced: TONE.emerald,
+  // Approved, but nothing reached the CRM, so it does not get the synced colour.
+  "dry run": TONE.slate,
   skipped: TONE.slate,
 };

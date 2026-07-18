@@ -100,3 +100,17 @@ describe("buildQueue", () => {
     expect(queue.map((r) => r.contactId)).toEqual(["a", "b", "c"]);
   });
 });
+
+describe("dry-run write-backs", () => {
+  it("is not reported as synced", () => {
+    const rows = buildQueue(
+      [{ id: "c1", name: "Dry Run", companyName: "Acme" }],
+      { c1: { fit: 80, priority: 80, grade: "B", needsReview: false } },
+      { c1: { status: "dry_run" } },
+    );
+    // Nothing reached the CRM, so calling this synced would be a claim the app
+    // cannot back up.
+    expect(rows[0].status).toBe("dry run");
+    expect(isBatchApprovable(rows[0])).toBe(false);
+  });
+});

@@ -30,13 +30,17 @@ export function buildPayload(score: ScoreInput): WritebackPayload {
  * Apply an approved write-back for one contact. With a HUBSPOT_TOKEN set this
  * PATCHes the contact's custom properties and POSTs a note engagement associated
  * to the contact; any non-2xx throws. Without a token it is a dry run: the
- * payload is logged and no network calls are made. Either way the `writebacks`
- * row is upserted to "written" (approvedAt and writtenAt both now).
+ * payload is logged and no network calls are made.
+ *
+ * The two outcomes are recorded differently. A dry run stores "dry_run", not
+ * "written": nothing reached the CRM, so calling the contact synced would be a
+ * lie the queue and the detail panel both repeat, and the idempotency guard
+ * would later skip the real write once a token was added.
  */
 export async function applyWriteback(
   contactId: string,
   score: ScoreInput,
-): Promise<{ status: "written"; payload: WritebackPayload; dryRun: boolean }> {
+): Promise<{ status: "written" | "dry_run"; payload: WritebackPayload; dryRun: boolean }> {
   const payload = buildPayload(score);
   const token = process.env.HUBSPOT_TOKEN;
   const dryRun = !token;
@@ -68,13 +72,13 @@ export async function applyWriteback(
   }
 
   const now = new Date();
+  const status = dryRun ? "dry_run" : "written";
+  // writtenAt stays null on a dry run: nothing was written.
+  const writtenAt = dryRun ? null : now;
   db.insert(writebacks)
-    .values({ contactId, status: "written", payload, approvedAt: now, writtenAt: now })
-    .onConflictDoUpdate({
-      target: writebacks.contactId,
-      set: { status: "written", payload, approvedAt: now, writtenAt: now },
-    })
+    .values({ contactId, status, payload, approvedAt: now, writtenAt })
+    .onConflictDoUpdate({ target: writebacks.contactId, set: { status, payload, approvedAt: now, writtenAt } })
     .run();
 
-  return { status: "written", payload, dryRun };
+  return { status, payload, dryRun };
 }

@@ -26,7 +26,7 @@ export function WritebackPanel({
   // dryRun is null for a decision restored from the DB: the row records that the
   // write happened, not whether it went to HubSpot or was a dry run.
   const [result, setResult] = useState<{ dryRun: boolean | null } | null>(
-    writebackStatus === "written" ? { dryRun: null } : null,
+    writebackStatus === "written" ? { dryRun: false } : writebackStatus === "dry_run" ? { dryRun: true } : null,
   );
   const [skipped, setSkipped] = useState(writebackStatus === "skipped");
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +37,13 @@ export function WritebackPanel({
   useEffect(() => {
     // Keep a just-approved result as-is (it knows whether the write was a dry
     // run); only fill one in when the status arrives from the server.
-    setResult((prev) => (writebackStatus === "written" ? (prev ?? { dryRun: null }) : null));
+    setResult((prev) =>
+      writebackStatus === "written"
+        ? (prev ?? { dryRun: false })
+        : writebackStatus === "dry_run"
+          ? (prev ?? { dryRun: true })
+          : null,
+    );
     setSkipped(writebackStatus === "skipped");
     setError(null);
   }, [writebackStatus]);
