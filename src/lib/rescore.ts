@@ -89,8 +89,11 @@ export function rescoreAll(icp: IcpConfig): number {
     if (!existing) continue;
 
     const s = scoreFromDossier(d, icp);
-    const carried = ((existing.reviewReasons as string[] | null) ?? []).filter((r) =>
-      r.startsWith("unverified claims in rationale"),
+    // Reasons the scorer cannot recompute: both come from the synthesis and
+    // citation-gate stage, so dropping them here would quietly clear needsReview
+    // and make an unfiltered rationale batch-approvable after a settings edit.
+    const carried = ((existing.reviewReasons as string[] | null) ?? []).filter(
+      (r) => r.startsWith("unverified claims in rationale") || r.startsWith("unmatched verification claim"),
     );
     const reviewReasons = [...s.reviewReasons, ...carried];
 
