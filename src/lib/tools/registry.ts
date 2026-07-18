@@ -1,7 +1,7 @@
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 
-import { withTool } from "./adapter";
+import { liveToolsEnabled, withTool } from "./adapter";
 import { pdlCompanyEnrich, pdlPersonEnrich } from "./pdl";
 import { apolloOrgEnrich, apolloPersonMatch } from "./apollo";
 import { hunterVerifyEmail } from "./hunter";
@@ -111,16 +111,15 @@ export const TOOLSETS: Record<string, (keyof typeof TOOLS)[]> = {
   // gated like the other live tools: in fixture/demo mode the fictional domains
   // either do not resolve or belong to unrelated real owners, and fingerprinting
   // those would both pollute the demo and hit strangers' servers.
-  tech:
-    process.env.LEAD_LEDGER_LIVE_TOOLS === "1"
-      ? ["fetch_url", "detect_tech_stack", "github_org_lookup"]
-      : ["detect_tech_stack", "github_org_lookup"],
+  tech: liveToolsEnabled()
+    ? ["fetch_url", "detect_tech_stack", "github_org_lookup"]
+    : ["detect_tech_stack", "github_org_lookup"],
   news: ["gdelt_news_search", "web_search"],
   engagement: ["hubspot_get_contact", "hubspot_get_engagements"],
   // Verification may re-fetch a cited source only when live tools are enabled.
   // In fixture/demo mode the seed URLs are fictional and return nothing, so a
   // live re-fetch would wrongly mark every claim unverifiable; there it judges
   // from the provided claims and cross-source consistency instead.
-  verification: process.env.LEAD_LEDGER_LIVE_TOOLS === "1" ? ["fetch_url"] : [],
+  verification: liveToolsEnabled() ? ["fetch_url"] : [],
   icpfit: [],
 };

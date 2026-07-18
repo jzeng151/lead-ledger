@@ -19,6 +19,16 @@ export function useRealProvider(key: string | undefined): boolean {
   return Boolean(key) && process.env.LEAD_LEDGER_DEMO !== "1";
 }
 
+/**
+ * May a tool reach a third-party site directly? Demo mode wins over the live
+ * flag: a showcase run has to stay on fixtures even when someone left
+ * LEAD_LEDGER_LIVE_TOOLS set, or it fingerprints unrelated real owners of the
+ * fictional demo domains and feeds that back into scoring.
+ */
+export function liveToolsEnabled(): boolean {
+  return process.env.LEAD_LEDGER_LIVE_TOOLS === "1" && process.env.LEAD_LEDGER_DEMO !== "1";
+}
+
 export function pickImpl<A extends unknown[], R>(
   key: string | undefined,
   real: (...a: A) => Promise<R>,

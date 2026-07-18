@@ -1,4 +1,4 @@
-import { fetchWithTimeout, trace } from "./adapter";
+import { fetchWithTimeout, liveToolsEnabled, trace } from "./adapter";
 
 export type GithubOrg = {
   login: string | null;
@@ -12,7 +12,7 @@ export type GithubOrg = {
 // Keyless (token optional): look up the org live only when explicitly enabled, else echo the
 // caller-supplied login. Default (LEAD_LEDGER_LIVE_TOOLS unset) keeps the demo deterministic.
 export async function githubOrgLookup(org: string): Promise<GithubOrg> {
-  if (process.env.LEAD_LEDGER_LIVE_TOOLS === "1") {
+  if (liveToolsEnabled()) {
     try {
       const headers: Record<string, string> = { Accept: "application/vnd.github+json" };
       if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;

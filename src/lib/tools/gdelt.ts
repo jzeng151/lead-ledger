@@ -1,4 +1,4 @@
-import { loadFixture, fetchWithTimeout } from "./adapter";
+import { liveToolsEnabled, loadFixture, fetchWithTimeout } from "./adapter";
 
 export type NewsItem = {
   date: string;
@@ -49,7 +49,7 @@ export async function gdeltNewsSearch({
   domain: string;
   sinceDays?: number;
 }): Promise<{ events: NewsItem[] }> {
-  if (process.env.LEAD_LEDGER_LIVE_TOOLS === "1") {
+  if (liveToolsEnabled()) {
     try {
       const url =
         `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(domain)}` +

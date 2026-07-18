@@ -1,4 +1,4 @@
-import { loadFixture, type FieldVal } from "./adapter";
+import { liveToolsEnabled, loadFixture, type FieldVal } from "./adapter";
 import { fetchUrl } from "./fetchUrl";
 
 export type TechStack = {
@@ -50,30 +50,32 @@ function mockTech(domain: string): TechStack {
 // Keyless: fingerprint the live homepage only when explicitly enabled, else the tech fixture.
 // Default (LEAD_LEDGER_LIVE_TOOLS unset) keeps the demo and tests deterministic.
 export async function detectTechStack(domain: string): Promise<TechStack> {
-  if (process.env.LEAD_LEDGER_LIVE_TOOLS === "1") {
+  if (liveToolsEnabled()) {
     try {
       const html = await fetchUrl(`https://${domain}`);
+      // A page that loaded and matched nothing is still a real observation, and
+      // for a domain with no fixture it is the only one available. Falling back
+      // here reported competitorPresent: null from a fixture that does not exist
+      // instead of the low-confidence false the scan actually supports.
       if (html) {
         const found = FINGERPRINTS.filter(([re]) => re.test(html)).map(([, name]) => name);
         const competitor = COMPETITORS.find(([re]) => re.test(html));
-        if (found.length || competitor) {
-          return {
-            technologies: competitor ? [...found, competitor[1]] : found,
-            // A positive is direct evidence (their script is on the page); a
-            // negative only means this one page carried no competitor tag, which
-            // is why it stays low-confidence.
-            competitorPresent: {
-              value: Boolean(competitor),
-              confidence: competitor ? 0.8 : 0.3,
-              source: `https://${domain}`,
-            },
-            competitorEvidence: competitor
-              ? { value: `${competitor[1]} script served on https://${domain}`, confidence: 0.8, source: `https://${domain}` }
-              : null,
-            complementSignals: [],
-            notes: null,
-          };
-        }
+        return {
+          technologies: competitor ? [...found, competitor[1]] : found,
+          // A positive is direct evidence (their script is on the page); a
+          // negative only means this one page carried no competitor tag, which
+          // is why it stays low-confidence.
+          competitorPresent: {
+            value: Boolean(competitor),
+            confidence: competitor ? 0.8 : 0.3,
+            source: `https://${domain}`,
+          },
+          competitorEvidence: competitor
+            ? { value: `${competitor[1]} script served on https://${domain}`, confidence: 0.8, source: `https://${domain}` }
+            : null,
+          complementSignals: [],
+          notes: null,
+        };
       }
     } catch {
       // fall through to fixture

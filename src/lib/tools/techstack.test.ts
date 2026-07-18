@@ -40,3 +40,32 @@ describe("detectTechStack live scan", () => {
     expect(t.competitorEvidence).toBeNull();
   });
 });
+
+describe("live scan gating and negatives", () => {
+  it("stays on fixtures in demo mode even with live tools enabled", async () => {
+    vi.stubEnv("LEAD_LEDGER_LIVE_TOOLS", "1");
+    vi.stubEnv("LEAD_LEDGER_DEMO", "1");
+    const spy = vi.fn();
+    vi.stubGlobal("fetch", spy);
+
+    // The demo domains are fictional; fingerprinting them hits whoever really
+    // owns them and feeds non-fixture evidence into a showcase run.
+    const t = await detectTechStack("northwind.dev");
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(t.competitorPresent.source).toBe("fixture:techstack");
+  });
+
+  it("keeps a live negative instead of falling back to a fixture", async () => {
+    vi.stubEnv("LEAD_LEDGER_LIVE_TOOLS", "1");
+    html("<html><body>plain marketing site</body></html>");
+
+    // A domain with no fixture: the scan found nothing, which is itself the
+    // finding. Falling through reported competitorPresent: null from a fixture
+    // that does not exist.
+    const t = await detectTechStack("no-fixture.example");
+
+    expect(t.competitorPresent.value).toBe(false);
+    expect(t.competitorPresent.source).toBe("https://no-fixture.example");
+  });
+});
