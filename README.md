@@ -20,6 +20,12 @@ npm run dev
 
 Open http://localhost:3000, then click "Sync contacts" to pull your HubSpot contacts into the queue.
 
+It expects a persistent single-instance server: state lives in a local SQLite
+file, the live pipeline streams from an in-process event bus, and a sync starts
+scoring runs that keep going after the response. On serverless that batch is cut
+off at the platform's max duration and the run streams do not survive an instance
+change.
+
 ### HubSpot setup for write-back
 
 Create two custom contact properties in HubSpot before approving anything, under

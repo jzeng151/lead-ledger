@@ -9,16 +9,25 @@ import { rejectCrossSite } from "@/lib/sameOrigin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// after() is bounded by the route's max duration, and this callback runs the
+// whole scoring batch. Ask for the longest window the host will give; on a
+// platform that caps it lower, a large sync is cut short (see the README note
+// about this app expecting a persistent server rather than serverless).
+export const maxDuration = 800;
 
 const { contacts, scores, writebacks } = schema;
 
 /** Wait out a run that is already scoring this contact, so the re-queue can follow it. */
-async function waitForIdle(contactId: string, timeoutMs = 10 * 60 * 1000): Promise<boolean> {
+async function waitForIdle(contactId: string, timeoutMs = 4 * 60 * 1000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (activeRunForContact(contactId) && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 3000));
   }
-  return !activeRunForContact(contactId);
+  const idle = !activeRunForContact(contactId);
+  // Say so rather than dropping the contact silently: its score is still flagged
+  // for review, so the queue does not present the stale verdict as clean.
+  if (!idle) console.warn(`sync: gave up waiting to re-run ${contactId}; its previous run is still going`);
+  return idle;
 }
 
 export async function POST(req: Request) {
