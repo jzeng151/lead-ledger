@@ -13,15 +13,22 @@ type WritebackScore = {
 export function WritebackPanel({
   contactId,
   score,
+  writebackStatus,
   onApproved,
 }: {
   contactId: string;
   score: WritebackScore;
+  /** Persisted decision for this contact, so a refresh does not offer the buttons again. */
+  writebackStatus?: string | null;
   onApproved?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ dryRun: boolean } | null>(null);
-  const [skipped, setSkipped] = useState(false);
+  // dryRun is null for a decision restored from the DB: the row records that the
+  // write happened, not whether it went to HubSpot or was a dry run.
+  const [result, setResult] = useState<{ dryRun: boolean | null } | null>(
+    writebackStatus === "written" ? { dryRun: null } : null,
+  );
+  const [skipped, setSkipped] = useState(writebackStatus === "skipped");
   const [error, setError] = useState<string | null>(null);
 
   // Skip must be persisted, not local-only: otherwise the decision vanishes on
@@ -106,7 +113,7 @@ export function WritebackPanel({
       {result ? (
         <p className="mt-4 flex items-center gap-1.5 text-sm font-medium text-[var(--tone-emerald-fg)]">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--tone-emerald-fg)]" />
-          {result.dryRun ? "Written (dry run)" : "Written to HubSpot"}
+          {result.dryRun === null ? "Written" : result.dryRun ? "Written (dry run)" : "Written to HubSpot"}
         </p>
       ) : skipped ? (
         <p className="mt-4 text-sm text-subtle">Skipped.</p>

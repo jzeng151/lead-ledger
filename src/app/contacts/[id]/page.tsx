@@ -33,7 +33,12 @@ type Score = {
   citations: Citation[] | null;
 };
 
-type Detail = { contact: Contact; score: Score | null; latestRunId: string | null };
+type Detail = {
+  contact: Contact;
+  score: Score | null;
+  latestRunId: string | null;
+  writebackStatus: string | null;
+};
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -231,6 +236,7 @@ export default function ContactDetailPage() {
               nextStep: score.nextStep,
               needsReview: score.needsReview,
             }}
+            writebackStatus={detail.writebackStatus}
             onApproved={load}
           />
         </div>
