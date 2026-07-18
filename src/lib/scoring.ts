@@ -98,6 +98,12 @@ export function score(d: any, icp: IcpConfig) {
   const unsupported: number = d.verification?.unsupported ?? 0;
   if (unsupported >= 2) reasons.push(`unsupported claims: ${unsupported} claims were not backed by a cited source`);
 
+  // Verification is the quality gate, so a run where it could not reach a verdict
+  // on much of the dossier is not clean, it is unresolved. Uncertain claims are
+  // not stripped (they were never rejected), so without this they leave no trace.
+  const uncertain: number = d.verification?.uncertain ?? 0;
+  if (uncertain >= 2) reasons.push(`unresolved verification: ${uncertain} claims could not be confirmed either way`);
+
   // Sort the band: the editor exposes the bounds as two independent fields, and
   // a reversed pair silently matches no priority at all, so every ambiguous lead
   // would skip review and become batch-approvable.

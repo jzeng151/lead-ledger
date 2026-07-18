@@ -143,6 +143,7 @@ export async function runContact(
     const verif = {
       contradictions: declared.length ? declared : contradictedClaims,
       unsupported: claims.filter((c: any) => c.verdict === "unsupported").length,
+      uncertain: claims.filter((c: any) => c.verdict === "uncertain").length,
     };
     bus.emit({ agent: "scorer", type: "scoring_started", payload: {} });
     const s = score(
@@ -186,6 +187,11 @@ export async function runContact(
     // at no real dossier field, but the rationale prose still asserts it. Flag that
     // for review instead of quietly showing an unbacked sentence to the rep.
     const reviewReasons = [...s.reviewReasons];
+    // Synthesis is non-fatal, but a score with no rationale is not something to
+    // approve blind: without this a clean high-priority contact could be batch
+    // approved and written to HubSpot with an empty note.
+    if (!cleanRationale)
+      reviewReasons.push("no rationale: the synthesis step produced no rep-facing verdict for this score");
     if (unmatched.length)
       reviewReasons.push(
         `unmatched verification claim: ${unmatched.join(", ")} was rejected but matches no cited field, so the rationale was not filtered`,

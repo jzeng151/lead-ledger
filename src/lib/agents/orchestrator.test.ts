@@ -212,3 +212,44 @@ describe("contradicted claims with no run-level contradiction", () => {
     expect(reasons.some((r) => r.includes("freight"))).toBe(true); // the note reaches the rep
   });
 });
+
+describe("synthesis produced no rationale", () => {
+  it("flags the run so an empty note cannot be batch approved", async () => {
+    const RUN = "run-orch-no-rationale";
+    const CONTACT = "c-orch-no-rationale";
+    db.insert(schema.contacts)
+      .values({ id: CONTACT, name: "No Rationale", companyDomain: "northwind.dev", props: {}, syncedAt: new Date() })
+      .onConflictDoNothing()
+      .run();
+
+    // A clean dossier: nothing else would trip review, so without the synthesis
+    // check this scores high and goes straight into batch approval with an empty
+    // HubSpot note.
+    const deps: OrchestratorDeps = {
+      runSub: (async (opts: { agentKey: string }) => {
+        switch (opts.agentKey) {
+          case "verification":
+            return { claims: [], contradictions: [] };
+          case "icpfit":
+            return { firmographic: 0.9, role: 0.9, technographic: 0.9, disqualified: false, dimensions: [], conflicts: [] };
+          case "contact":
+            return { title: f("VP Engineering", "pdl_person_enrich"), identityUnverified: false };
+          default:
+            return {};
+        }
+      }) as unknown as OrchestratorDeps["runSub"],
+      synthesize: async () => {
+        throw new Error("synthesis overloaded");
+      },
+    };
+
+    await runContact(RUN, CONTACT, deps);
+
+    const row = db.select().from(schema.scores).where(eq(schema.scores.runId, RUN)).get()!;
+    expect(row.rationale).toBeNull();
+    expect(row.needsReview).toBe(true);
+    expect((row.reviewReasons as string[]).some((r) => r.startsWith("no rationale"))).toBe(true);
+    // The run itself still completes and keeps its deterministic score.
+    expect(db.select().from(schema.runs).where(eq(schema.runs.id, RUN)).get()?.status).toBe("scored");
+  });
+});

@@ -75,6 +75,7 @@ export function scoreFromDossier(
       verification: {
         contradictions: declared.length ? declared : fromClaims,
         unsupported: claims.filter((c) => c.verdict === "unsupported").length,
+        uncertain: claims.filter((c) => c.verdict === "uncertain").length,
       },
       identityUnverified: partials.contact?.identityUnverified,
     },
@@ -112,7 +113,10 @@ export function rescoreAll(icp: IcpConfig): number {
     // citation-gate stage, so dropping them here would quietly clear needsReview
     // and make an unfiltered rationale batch-approvable after a settings edit.
     const carried = ((existing.reviewReasons as string[] | null) ?? []).filter(
-      (r) => r.startsWith("unverified claims in rationale") || r.startsWith("unmatched verification claim"),
+      (r) =>
+        r.startsWith("unverified claims in rationale") ||
+        r.startsWith("unmatched verification claim") ||
+        r.startsWith("no rationale"),
     );
     const reviewReasons = [...s.reviewReasons, ...carried];
 

@@ -217,3 +217,23 @@ describe("grade cutoffs and recency guards", () => {
     expect(v).toBe(50); // treated as same-day, no decay applied
   });
 });
+
+describe("unresolved verification", () => {
+  it("flags a cluster of uncertain verdicts", () => {
+    // Uncertain claims are never stripped (nothing rejected them), so without a
+    // reason they leave no trace and the lead is batch-approvable.
+    const r = score(
+      { icpFit: fit(0.9), engagement: {}, verification: { contradictions: [], unsupported: 0, uncertain: 3 } },
+      DEFAULT_ICP,
+    );
+    expect(r.reviewReasons.some((x) => x.startsWith("unresolved verification"))).toBe(true);
+  });
+
+  it("lets a single uncertain claim pass", () => {
+    const r = score(
+      { icpFit: fit(0.9), engagement: {}, verification: { contradictions: [], unsupported: 0, uncertain: 1 } },
+      DEFAULT_ICP,
+    );
+    expect(r.reviewReasons.some((x) => x.startsWith("unresolved verification"))).toBe(false);
+  });
+});
