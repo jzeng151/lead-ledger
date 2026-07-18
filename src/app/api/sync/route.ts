@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { db, schema } from "@/db";
 import { syncContacts } from "@/lib/hubspot/sync";
 import { runContact } from "@/lib/agents/orchestrator";
-import { activeRuns } from "@/lib/runs";
+import { activeRunForContact, activeRuns } from "@/lib/runs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +48,11 @@ export async function POST() {
   // sent does not silently drop runs this response reported as queued.
   after(async () => {
     for (let i = 0; i < pending.length; i += CONCURRENCY) {
-      const chunk = pending.slice(i, i + CONCURRENCY);
+      // Re-check at the point of launch, not once up front: a later chunk can run
+      // minutes after this list was built, by which time another sync or a manual
+      // re-run may already have started the same contact. runContact has no guard
+      // of its own, so two runs would race to write one score.
+      const chunk = pending.slice(i, i + CONCURRENCY).filter((c) => !activeRunForContact(c.id));
       // contactId keeps the runId unique even if two runs mint in the same ms.
       await Promise.allSettled(chunk.map((c) => runContact(`run-${c.id}-${Date.now()}`, c.id)));
     }
