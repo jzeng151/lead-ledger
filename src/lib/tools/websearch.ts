@@ -67,10 +67,10 @@ export async function webSearch(query: string, domain?: string): Promise<{ event
       const res = await fetchWithTimeout(
         `https://serpapi.com/search.json?q=${encodeURIComponent(query)}&api_key=${key}`,
       );
-      if (res.ok) {
-        const events = mapSerp(await res.json());
-        if (events.length) return { events };
-      }
+      // A successful search that found nothing is a real finding. Falling through
+      // to the fixture here injected invented news into an otherwise live run,
+      // for any domain that happens to have one bundled.
+      if (res.ok) return { events: mapSerp(await res.json()) };
     } catch {
       // fall through to fixture
     }

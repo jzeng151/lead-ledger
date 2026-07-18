@@ -87,3 +87,16 @@ describe("persisted dates", () => {
     expect(age).toBeLessThan(5.1);
   });
 });
+
+describe("empty live results", () => {
+  it("reports nothing found instead of falling back to the fixture", async () => {
+    vi.stubEnv("SERPAPI_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ news_results: [] })));
+
+    // northwind.dev has a bundled fixture; injecting it here would put invented
+    // news into an otherwise live run.
+    const { events } = await webSearch("northwind.dev funding", "northwind.dev");
+
+    expect(events).toEqual([]);
+  });
+});
