@@ -23,9 +23,22 @@ export async function PUT(req: Request) {
   const body = await req.json().catch(() => ({}));
   const patch = body && typeof body === "object" ? (body as Partial<IcpConfig>) : {};
 
-  // Shallow merge over the stored config. Nested keys (weights/blend/reviewBand)
-  // are replaced wholesale, which is what the editor sends.
-  const merged: IcpConfig = { ...readConfig(), ...patch };
+  // Merge over the stored config, one level deep for the object-valued sections.
+  // A shallow merge would let a partial patch such as {"urgency":{"liftMax":10}}
+  // replace the whole section, dropping urgency.weights and making every later
+  // run and re-score throw when the scorer dereferences it.
+  const current = readConfig();
+  const nested = ["weights", "urgency", "grades", "headcount"] as const;
+  const merged: IcpConfig = { ...current, ...patch };
+  for (const k of nested) {
+    const before = current[k] as Record<string, unknown> | undefined;
+    const incoming = (patch as Record<string, unknown>)[k];
+    if (before && incoming && typeof incoming === "object" && !Array.isArray(incoming))
+      (merged as Record<string, unknown>)[k] = { ...before, ...(incoming as Record<string, unknown>) };
+  }
+  // urgency.weights is a level deeper again.
+  if (current.urgency?.weights && (patch.urgency as { weights?: unknown } | undefined)?.weights)
+    merged.urgency.weights = { ...current.urgency.weights, ...patch.urgency!.weights };
 
   db.insert(icpConfig)
     .values({ id: "default", config: merged })
