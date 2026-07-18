@@ -64,18 +64,29 @@ export function isPublicHttpUrl(raw: string): boolean {
 // context. res.text() would buffer the whole body first, so read the stream and
 // stop at the cap.
 const MAX_BYTES = 512 * 1024;
+const BODY_TIMEOUT_MS = 5000;
+const MAX_REDIRECTS = 5;
 
 async function readCapped(res: Response): Promise<string> {
   if (!res.body) return (await res.text()).slice(0, MAX_BYTES);
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
+  // fetchWithTimeout's abort only covers the response headers; once they arrive
+  // its timer is cleared, so a server that stalls mid-body would hang the run
+  // here. Bound the read on its own.
+  const deadline = Date.now() + BODY_TIMEOUT_MS;
   try {
     while (total < MAX_BYTES) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      total += value.length;
+      const left = deadline - Date.now();
+      if (left <= 0) break;
+      const next = await Promise.race([
+        reader.read(),
+        new Promise<null>((r) => setTimeout(() => r(null), left).unref?.()),
+      ]);
+      if (!next || next.done) break;
+      chunks.push(next.value);
+      total += next.value.length;
     }
   } finally {
     await reader.cancel().catch(() => {});
@@ -83,12 +94,34 @@ async function readCapped(res: Response): Promise<string> {
   return new TextDecoder().decode(Buffer.concat(chunks).subarray(0, MAX_BYTES));
 }
 
+/**
+ * Fetch following redirects by hand, validating every hop.
+ *
+ * Automatic redirect following would check only the model-supplied URL: a public
+ * page the lead controls can 302 to loopback or the metadata endpoint, and the
+ * response comes back to the model even though that target would be rejected if
+ * requested directly.
+ */
+async function fetchGuarded(url: string): Promise<Response | null> {
+  let current = url;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    if (!isPublicHttpUrl(current)) return null;
+    const res = await fetchWithTimeout(current, { redirect: "manual" });
+    if (res.status < 300 || res.status >= 400) return res;
+
+    const location = res.headers.get("location");
+    if (!location) return res;
+    current = new URL(location, current).toString();
+  }
+  return null; // redirect loop or too many hops
+}
+
 // Keyless: returns page text, or "" on any failure so callers can fall back deterministically.
 export async function fetchUrl(url: string): Promise<string> {
   if (!isPublicHttpUrl(url)) return "";
   try {
-    const res = await fetchWithTimeout(url);
-    if (!res.ok) return "";
+    const res = await fetchGuarded(url);
+    if (!res || !res.ok) return "";
     return await readCapped(res);
   } catch {
     return "";

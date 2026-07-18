@@ -57,3 +57,33 @@ describe("fetchUrl", () => {
     expect(text.length).toBe(512 * 1024);
   });
 });
+
+describe("redirect handling", () => {
+  it("refuses a public URL that redirects to a private host", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        calls.push(String(url));
+        // A page the lead controls bounces the fetch at cloud metadata.
+        return new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest/meta-data/" } });
+      }),
+    );
+
+    expect(await fetchUrl("https://lead-controlled.example")).toBe("");
+    expect(calls).toEqual(["https://lead-controlled.example"]); // the hop was never requested
+  });
+
+  it("follows a redirect that stays public", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) =>
+        String(url).includes("start")
+          ? new Response(null, { status: 301, headers: { location: "https://northwind.dev/home" } })
+          : new Response("<html>landed</html>", { status: 200 }),
+      ),
+    );
+
+    expect(await fetchUrl("https://northwind.dev/start")).toBe("<html>landed</html>");
+  });
+});
