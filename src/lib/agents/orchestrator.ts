@@ -236,6 +236,17 @@ export async function runContact(
       nextStep: synth.nextStep ?? null,
       citations: gate.kept,
     };
+    // The contact can be purged mid-run: a sync that finds it archived in HubSpot
+    // deletes it and this run's row along with it. Persisting now would leave a
+    // score and a staged write-back pointing at a contact that no longer exists,
+    // which the queue cannot render and which stops a restored contact from being
+    // auto-queued later.
+    if (!db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, contactId)).get()) {
+      bus.emit({ agent: "orchestrator", type: "agent_warning", payload: { message: "contact was removed during this run; score discarded" } });
+      notifyActivity();
+      return;
+    }
+
     db.insert(scores)
       .values(scoreRow)
       .onConflictDoUpdate({ target: scores.runId, set: scoreRow })
@@ -250,7 +261,19 @@ export async function runContact(
     // complete and mark the contact written against the verdict this run just
     // replaced. The write-back route reconciles the row against the newest score
     // once its HubSpot call returns.
-    const staged = db.select({ status: writebacks.status }).from(writebacks).where(eq(writebacks.contactId, contactId)).get();
+    // A skip is left alone for the same reason it survives a re-score: the rep
+    // decided not to write this contact, and only the rep undoes that.
+    const staged = db.select().from(writebacks).where(eq(writebacks.contactId, contactId)).get();
+    const stagedPayload = (staged?.payload ?? {}) as { properties?: Record<string, unknown>; note?: string };
+
+    // A re-run that lands the same verdict on an already-written contact changes
+    // nothing worth approving again. Reopening it would offer the rep a button
+    // that posts a second HubSpot note for a score already there.
+    const sameAsWritten =
+      staged?.status === "written" &&
+      stagedPayload.properties?.lead_priority_score === writeback.properties.lead_priority_score &&
+      stagedPayload.properties?.lead_grade === writeback.properties.lead_grade &&
+      (stagedPayload.note ?? "") === writeback.note;
 
     // And only stage from the contact's newest run. A run that outlived the
     // staleness window can finish after a newer one has already been approved;
@@ -269,7 +292,8 @@ export async function runContact(
         { id: "", at: -Infinity },
       ).id;
 
-    if (staged?.status !== "writing" && newestRunId === runId) {
+    const untouchable = staged?.status === "writing" || staged?.status === "skipped" || sameAsWritten;
+    if (!untouchable && newestRunId === runId) {
       db.insert(writebacks)
         .values({ contactId, status: "pending", payload: writeback })
         .onConflictDoUpdate({

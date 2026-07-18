@@ -339,3 +339,77 @@ describe("an old run finishing after a newer one", () => {
     expect((wb.payload as any).properties.lead_priority_score).toBe(90);
   });
 });
+
+describe("write-back staging respects prior decisions", () => {
+  const seed = (id: string, status: string, payload: unknown) => {
+    db.insert(schema.contacts)
+      .values({ id, name: id, companyDomain: "northwind.dev", props: {}, syncedAt: new Date() })
+      .onConflictDoNothing()
+      .run();
+    db.insert(schema.writebacks).values({ contactId: id, status, payload, approvedAt: new Date() }).run();
+  };
+
+  it("leaves a skip in place when a re-run lands a clean score", async () => {
+    seed("c-orch-skipped", "skipped", null);
+    await runContact("run-orch-skipped", "c-orch-skipped", fakeDeps);
+    // The rep decided not to write this contact; only the rep undoes that.
+    expect(db.select().from(schema.writebacks).where(eq(schema.writebacks.contactId, "c-orch-skipped")).get()?.status).toBe("skipped");
+  });
+
+  it("keeps an unchanged written row synced", async () => {
+    // Precisely what fakeDeps produces for this dossier.
+    const s = score(
+      {
+        icpFit: { firmographic: 0.8, role: 0.3, technographic: 0.3, disqualified: false, conflicts: ["stale funding", "competitor present"] },
+        engagement: { topActions: [], recencyDays: 10 },
+        news: { events: [{ type: "funding", fresh: true }] },
+        verification: { contradictions: ["role mismatch"], unsupported: 1 },
+        identityUnverified: true,
+      },
+      DEFAULT_ICP,
+    );
+    seed("c-orch-same", "written", {
+      properties: { lead_priority_score: s.priority, lead_grade: s.grade },
+      note: "Funded dev-tools shop, but funding claim is unverified.",
+    });
+
+    await runContact("run-orch-same", "c-orch-same", fakeDeps);
+
+    // Reopening it would offer a button that posts a second note for a score
+    // HubSpot already holds.
+    const wb = db.select().from(schema.writebacks).where(eq(schema.writebacks.contactId, "c-orch-same")).get()!;
+    expect(wb.status).toBe("written");
+  });
+
+  it("does reopen when the re-run changes the verdict", async () => {
+    seed("c-orch-moved", "written", { properties: { lead_priority_score: 1, lead_grade: "F" }, note: "old" });
+    await runContact("run-orch-moved", "c-orch-moved", fakeDeps);
+    expect(db.select().from(schema.writebacks).where(eq(schema.writebacks.contactId, "c-orch-moved")).get()?.status).toBe("pending");
+  });
+});
+
+describe("a contact purged mid-run", () => {
+  it("discards the score instead of orphaning it", async () => {
+    const RUN = "run-orch-purged";
+    const CONTACT = "c-orch-purged";
+    db.insert(schema.contacts)
+      .values({ id: CONTACT, name: "Purged", companyDomain: "northwind.dev", props: {}, syncedAt: new Date() })
+      .run();
+
+    // The sync that archives this contact lands while the run is in flight.
+    const deps: OrchestratorDeps = {
+      runSub: (async (opts: { agentKey: string }) => {
+        if (opts.agentKey === "engagement") db.delete(schema.contacts).where(eq(schema.contacts.id, CONTACT)).run();
+        return (await (fakeRunSub as any)(opts)) as unknown;
+      }) as unknown as OrchestratorDeps["runSub"],
+      synthesize: fakeSynthesize,
+    };
+
+    await runContact(RUN, CONTACT, deps);
+
+    // A score for a contact that no longer exists cannot be rendered and blocks
+    // a restored contact from being auto-queued.
+    expect(db.select().from(schema.scores).where(eq(schema.scores.runId, RUN)).get()).toBeUndefined();
+    expect(db.select().from(schema.writebacks).where(eq(schema.writebacks.contactId, CONTACT)).get()).toBeUndefined();
+  });
+});
