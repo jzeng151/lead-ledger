@@ -1,4 +1,4 @@
-import { anthropic } from "../anthropic";
+import { getAnthropic } from "../anthropic";
 import { TOOLS, TOOLSETS, submitTool } from "../tools/registry";
 import { withTrace } from "../tools/adapter";
 import { MODELS, EFFORT } from "../models";
@@ -30,7 +30,7 @@ export interface RunSubagentOpts {
  *
  * The Anthropic client is injected so tests can pass a fake (no key required).
  */
-export async function runSubagent(opts: RunSubagentOpts, client = anthropic) {
+export async function runSubagent(opts: RunSubagentOpts, client = getAnthropic()) {
   const {
     bus,
     agentKey,
