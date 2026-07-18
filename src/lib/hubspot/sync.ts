@@ -22,6 +22,25 @@ export function normalizeDomain(raw: string | null | undefined): string | null {
  * Delete a contact and all of its runtime rows (runs, run events, dossiers,
  * scores, writebacks). Used to remove a stale row that a sync is superseding.
  */
+// Mailbox providers whose domain says nothing about the account, so they must
+// not become a company domain.
+const FREE_EMAIL = new Set([
+  "gmail.com", "googlemail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com",
+  "aol.com", "icloud.com", "me.com", "proton.me", "protonmail.com", "gmx.com", "mail.com",
+]);
+
+/**
+ * Fall back to the corporate email domain when HubSpot has no website on the
+ * contact. Every retrieval agent keys its tools by domain, so a contact synced
+ * without one is queued for a run that can only come back empty.
+ */
+export function domainFromEmail(email: string | null | undefined): string | null {
+  const at = (email ?? "").trim().toLowerCase().split("@");
+  if (at.length !== 2) return null;
+  const host = normalizeDomain(at[1]);
+  return host && !FREE_EMAIL.has(host) ? host : null;
+}
+
 export function purgeContact(id: string) {
   const runIds = db.select({ id: runs.id }).from(runs).where(eq(runs.contactId, id)).all().map((r) => r.id);
   if (runIds.length) {
@@ -104,7 +123,7 @@ export async function syncContacts(): Promise<{ synced: number; source: "hubspot
       email: p.email ?? null,
       title: p.jobtitle ?? null,
       companyName: p.company ?? null,
-      companyDomain: normalizeDomain(p.website),
+      companyDomain: normalizeDomain(p.website) ?? domainFromEmail(p.email),
       props: p as Record<string, unknown>,
       syncedAt: now,
     };

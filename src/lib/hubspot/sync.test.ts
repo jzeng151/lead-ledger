@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { db, schema } from "../../db";
-import { dedupeByEmail, normalizeDomain, syncContacts } from "./sync";
+import { dedupeByEmail, domainFromEmail, normalizeDomain, syncContacts } from "./sync";
 
 describe("normalizeDomain", () => {
   it("reduces HubSpot's free-form website values to a bare host", () => {
@@ -89,5 +89,32 @@ describe("syncContacts paging", () => {
     expect(synced).toBe(3); // would have been 2 when only the first page was read
     expect(seen).toEqual(["page1", "100"]);
     expect(db.select().from(contacts).where(eq(contacts.id, "pg-3")).get()?.companyDomain).toBe("third.dev");
+  });
+});
+
+describe("domainFromEmail", () => {
+  it("derives a company domain when HubSpot has no website", () => {
+    expect(domainFromEmail("priya@northwind.dev")).toBe("northwind.dev");
+    expect(domainFromEmail("SAM@Mail.Example.COM")).toBe("mail.example.com");
+  });
+
+  it("refuses mailbox providers and malformed input", () => {
+    // A gmail.com "company domain" would key every tool at the wrong account.
+    expect(domainFromEmail("someone@gmail.com")).toBeNull();
+    expect(domainFromEmail("someone@icloud.com")).toBeNull();
+    expect(domainFromEmail("not-an-email")).toBeNull();
+    expect(domainFromEmail(null)).toBeNull();
+  });
+
+  it("is used as the sync fallback so the contact is not queued domainless", async () => {
+    vi.stubEnv("HUBSPOT_TOKEN", "test-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ results: [{ id: "nw-1", properties: { firstname: "Ada", email: "ada@northwind.dev" } }] })),
+    );
+
+    await syncContacts();
+
+    expect(db.select().from(contacts).where(eq(contacts.id, "nw-1")).get()?.companyDomain).toBe("northwind.dev");
   });
 });
