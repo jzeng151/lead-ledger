@@ -136,3 +136,53 @@ describe("rescoreAll: review status alone reopens a written row", () => {
     expect((wb.payload as any).properties.lead_priority_score).toBe(100); // values unchanged
   });
 });
+
+describe("rescoreAll: an approved needs-review contact is left alone", () => {
+  it("does not reopen a written row that already needed review when it was approved", () => {
+    const now = new Date();
+    db.insert(runs).values({ id: "wb-keep-run", contactId: "wb-keep", status: "scored", startedAt: now }).run();
+    db.insert(dossiers).values({ runId: "wb-keep-run", ...dossier }).run();
+    // Flagged at the time the rep approved it anyway (individual approval is
+    // allowed for needs-review leads).
+    db.insert(scores)
+      .values({ runId: "wb-keep-run", contactId: "wb-keep", fit: 90, engagement: 0, timing: 80, priority: 100, grade: "A", needsReview: true, reviewReasons: ["identity unverified: x"], citations: [] })
+      .run();
+    db.insert(writebacks)
+      .values({
+        contactId: "wb-keep",
+        status: "written",
+        payload: { properties: { lead_priority_score: 100, lead_grade: "A" }, note: "n" },
+        approvedAt: now,
+        writtenAt: now,
+      })
+      .run();
+
+    // An unrelated settings save: same values, still flagged. Re-raising it here
+    // would undo the human's call on every future save.
+    rescoreAll(DEFAULT_ICP);
+
+    expect(db.select().from(writebacks).where(eq(writebacks.contactId, "wb-keep")).get()?.status).toBe("written");
+  });
+});
+
+describe("rescoreAll: contradicted claims survive", () => {
+  it("keeps a run flagged when the contradiction lives only on the claim", () => {
+    const now = new Date();
+    const contradicted = {
+      ...dossier,
+      // The verifier put the detail in the claim note and left contradictions[] empty.
+      verification: { claims: [{ claimId: "industry", verdict: "contradicted", note: "sells freight" }], contradictions: [] },
+    };
+    db.insert(runs).values({ id: "rs-contra-run", contactId: "rs-contra", status: "scored", startedAt: now }).run();
+    db.insert(dossiers).values({ runId: "rs-contra-run", ...contradicted }).run();
+    db.insert(scores)
+      .values({ runId: "rs-contra-run", contactId: "rs-contra", fit: 90, engagement: 0, timing: 80, priority: 100, grade: "A", needsReview: true, reviewReasons: ["verification contradiction: industry: sells freight"], citations: [] })
+      .run();
+
+    rescoreAll(DEFAULT_ICP);
+
+    const row = db.select().from(scores).where(eq(scores.runId, "rs-contra-run")).get()!;
+    expect(row.needsReview).toBe(true);
+    expect((row.reviewReasons as string[]).some((r) => r.startsWith("verification contradiction"))).toBe(true);
+  });
+});

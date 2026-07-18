@@ -18,17 +18,26 @@ type WritebackPayload = { properties?: { lead_priority_score?: number; lead_grad
  * would otherwise treat it as synced and hide approval. A skip is left alone:
  * that is a human decision, not a stale score.
  */
-function syncWriteback(contactId: string, priority: number, grade: string, needsReview: boolean) {
+function syncWriteback(
+  contactId: string,
+  priority: number,
+  grade: string,
+  needsReview: boolean,
+  wasNeedsReview: boolean,
+) {
   const wb = db.select().from(writebacks).where(eq(writebacks.contactId, contactId)).get();
   if (!wb || wb.status === "skipped") return;
 
   const prior = (wb.payload ?? {}) as WritebackPayload;
   const sameValues = prior.properties?.lead_priority_score === priority && prior.properties?.lead_grade === grade;
-  // A written contact that now needs review has to be reopened even when its
-  // numbers did not move: the queue gives "written" precedence over needsReview,
-  // so it would otherwise stay hidden from the Needs review tab with the panel
-  // still showing Written.
-  if (sameValues && !(wb.status === "written" && needsReview)) return;
+  // A written contact reopens when its numbers moved, or when this save is what
+  // newly flagged it (the queue ranks written above needsReview, so it would
+  // otherwise stay hidden from the Needs review tab). A contact that already
+  // needed review when the rep approved it anyway is left alone: that decision
+  // was made with the flag visible, and re-raising it on every unrelated
+  // settings save would undo the human's call over and over.
+  const newlyFlagged = needsReview && !wasNeedsReview;
+  if (sameValues && !(wb.status === "written" && newlyFlagged)) return;
 
   const payload: WritebackPayload = { properties: { lead_priority_score: priority, lead_grade: grade }, note: prior.note ?? "" };
   db.update(writebacks)
@@ -51,13 +60,20 @@ export function scoreFromDossier(
   const merged = (d.merged ?? {}) as any;
   const v = (d.verification ?? {}) as any;
   const claims: any[] = v.claims ?? [];
+  // Same fallback the orchestrator applies at run time: a verifier can mark a
+  // claim contradicted and leave the run-level list empty, and dropping that here
+  // would clear the warning on the next settings save.
+  const declared: string[] = v.contradictions ?? [];
+  const fromClaims = claims
+    .filter((c) => c.verdict === "contradicted")
+    .map((c) => `${c.claimId}${c.note ? `: ${c.note}` : ""}`);
   return score(
     {
       icpFit: merged.icpFit ?? {},
       engagement: partials.engagement,
       news: partials.news,
       verification: {
-        contradictions: v.contradictions ?? [],
+        contradictions: declared.length ? declared : fromClaims,
         unsupported: claims.filter((c) => c.verdict === "unsupported").length,
       },
       identityUnverified: partials.contact?.identityUnverified,
@@ -81,7 +97,10 @@ export function rescoreAll(icp: IcpConfig): number {
   const startedAt = new Map(
     db.select({ id: runs.id, startedAt: runs.startedAt }).from(runs).all().map((r) => [r.id, r.startedAt?.getTime() ?? 0]),
   );
-  const newest = new Map<string, { at: number; priority: number; grade: string; needsReview: boolean }>();
+  const newest = new Map<
+    string,
+    { at: number; priority: number; grade: string; needsReview: boolean; wasNeedsReview: boolean }
+  >();
 
   let updated = 0;
   for (const d of db.select().from(dossiers).all()) {
@@ -113,10 +132,16 @@ export function rescoreAll(icp: IcpConfig): number {
     const at = startedAt.get(d.runId) ?? 0;
     const seen = newest.get(existing.contactId);
     if (!seen || at >= seen.at)
-      newest.set(existing.contactId, { at, priority: s.priority, grade: s.grade, needsReview: reviewReasons.length > 0 });
+      newest.set(existing.contactId, {
+        at,
+        priority: s.priority,
+        grade: s.grade,
+        needsReview: reviewReasons.length > 0,
+        wasNeedsReview: Boolean(existing.needsReview),
+      });
     updated++;
   }
 
-  for (const [contactId, v] of newest) syncWriteback(contactId, v.priority, v.grade, v.needsReview);
+  for (const [contactId, v] of newest) syncWriteback(contactId, v.priority, v.grade, v.needsReview, v.wasNeedsReview);
   return updated;
 }
