@@ -17,6 +17,18 @@ const FINGERPRINTS: Array<[RegExp, string]> = [
   [/vercel/i, "Vercel"],
 ];
 
+// Observability vendors we compete with. A live scan must check these before it
+// reports competitorPresent: false, otherwise a lead already running Datadog
+// looks like open territory to ICP-fit purely because its homepage is Next.js.
+const COMPETITORS: Array<[RegExp, string]> = [
+  [/datadoghq|datadog-rum|dd-trace/i, "Datadog"],
+  [/newrelic|nr-data\.net/i, "New Relic"],
+  [/dynatrace|ruxitagentjs/i, "Dynatrace"],
+  [/appdynamics|adrum/i, "AppDynamics"],
+  [/browser\.sentry-cdn\.com|sentry\.io/i, "Sentry"],
+  [/honeycomb\.io/i, "Honeycomb"],
+];
+
 function mockTech(domain: string): TechStack {
   const t = loadFixture(domain).tech ?? {};
   const src = "fixture:techstack";
@@ -40,11 +52,19 @@ export async function detectTechStack(domain: string): Promise<TechStack> {
       const html = await fetchUrl(`https://${domain}`);
       if (html) {
         const found = FINGERPRINTS.filter(([re]) => re.test(html)).map(([, name]) => name);
-        if (found.length) {
+        const competitor = COMPETITORS.find(([re]) => re.test(html));
+        if (found.length || competitor) {
           return {
-            technologies: found,
-            competitorPresent: { value: false, confidence: 0.3, source: `https://${domain}` },
-            competitorEvidence: null,
+            technologies: competitor ? [...found, competitor[1]] : found,
+            // A positive is direct evidence (their script is on the page); a
+            // negative only means this one page carried no competitor tag, which
+            // is why it stays low-confidence.
+            competitorPresent: {
+              value: Boolean(competitor),
+              confidence: competitor ? 0.8 : 0.3,
+              source: `https://${domain}`,
+            },
+            competitorEvidence: competitor ? `${competitor[1]} script served on https://${domain}` : null,
             complementSignals: [],
             notes: null,
           };
