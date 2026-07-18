@@ -40,3 +40,20 @@ describe("live news freshness", () => {
     expect(events.map((e) => e.fresh)).toEqual([true, false, false]);
   });
 });
+
+describe("persisted dates", () => {
+  it("stores an absolute date the re-scorer can still read", async () => {
+    vi.stubEnv("LEAD_LEDGER_LIVE_TOOLS", "1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ articles: [{ seendate: "20260615T120000Z", title: "Raised", url: "https://n/1" }] })),
+    );
+
+    const { events } = await gdeltNewsSearch({ domain: "northwind.dev" });
+
+    // GDELT's own stamp is not parseable, so a re-score months later would fall
+    // back to the fresh flag and hand this full urgency forever.
+    expect(events[0].date).toBe("2026-06-15T12:00:00.000Z");
+    expect(Number.isNaN(Date.parse(events[0].date))).toBe(false);
+  });
+});

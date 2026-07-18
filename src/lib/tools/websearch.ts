@@ -34,7 +34,10 @@ function mapSerp(data: any): NewsItem[] {
     // last week. An unreadable date is not evidence of recency either.
     const age = ageInDays(r.date);
     return {
-      date: r.date ?? "",
+      // Store an absolute date. "2 days ago" is meaningless once persisted: the
+      // scorer re-reads this on every re-score, cannot parse it, and falls back
+      // to a `fresh` flag that never ages.
+      date: age === null ? (r.date ?? "") : new Date(Date.now() - age * 86_400_000).toISOString(),
       type: "news",
       summary: r.title ?? r.snippet ?? "",
       source: r.link ?? "",

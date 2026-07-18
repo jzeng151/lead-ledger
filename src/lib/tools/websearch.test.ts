@@ -68,3 +68,22 @@ describe("live result freshness", () => {
     expect(events.map((e) => e.fresh)).toEqual([true, false, false]);
   });
 });
+
+describe("persisted dates", () => {
+  it("converts a relative date to an absolute one", async () => {
+    vi.stubEnv("SERPAPI_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ news_results: [{ title: "Raised", link: "https://n/1", date: "5 days ago" }] })),
+    );
+
+    const { events } = await webSearch("northwind.dev funding");
+
+    // "5 days ago" means nothing once stored: the re-scorer cannot read it and
+    // falls back to a fresh flag that never ages.
+    expect(Number.isNaN(Date.parse(events[0].date))).toBe(false);
+    const age = (Date.now() - Date.parse(events[0].date)) / 86_400_000;
+    expect(age).toBeGreaterThan(4.9);
+    expect(age).toBeLessThan(5.1);
+  });
+});

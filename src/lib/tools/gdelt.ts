@@ -28,7 +28,11 @@ function mapArticles(data: any, now = Date.now()): NewsItem[] {
   return arts.map((a: any) => {
     const seen = parseSeendate(a.seendate);
     return {
-      date: a.seendate ?? "",
+      // ISO, not GDELT's compact stamp: this date is persisted in the dossier and
+      // the scorer re-reads it on every re-score. An unparseable date there falls
+      // back to the retrieval-time `fresh` flag, which never ages, so months later
+      // a settings save would still give this event full urgency.
+      date: seen ? seen.toISOString() : (a.seendate ?? ""),
       type: "news",
       summary: a.title ?? "",
       source: a.url ?? "",
