@@ -9,6 +9,10 @@ export const field = <T extends z.ZodTypeAny>(t: T) =>
 // (for example on an obviously out-of-ICP company where the model shortcuts)
 // must not throw and abort the whole contact run. Missing fields become
 // undefined / empty; the orchestrator and deterministic scorer tolerate that.
+//
+// NOTE: the field() fields below are the citeable dossier keys shown in the
+// report. Their display labels live in ./citationLabels.ts - add a label there
+// when you add a citeable field, or the report shows the raw internal key.
 
 // 1. Company / Firmographics
 export const CompanyFindings = z.object({

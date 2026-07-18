@@ -7,6 +7,7 @@ import { ScoreBars } from "@/app/components/ScoreBars";
 import { LiveView } from "@/app/components/LiveView";
 import { WritebackPanel } from "@/app/components/WritebackPanel";
 import { gradeTone } from "@/app/components/tones";
+import { citationLabel } from "@/lib/agents/citationLabels";
 
 type Contact = {
   id: string;
@@ -183,14 +184,19 @@ export default function ContactDetailPage() {
                 <div className="mt-5 border-t border-line pt-4">
                   <p className="eyebrow">Citations</p>
                   <ul className="mt-2.5 flex flex-col gap-2">
-                    {score.citations.map((c, i) => (
-                      <li key={i} className="flex gap-2.5 text-sm text-muted">
-                        <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-muted">
-                          {c.ref}
-                        </span>
-                        <span>{c.text}</span>
-                      </li>
-                    ))}
+                    {score.citations.map((c, i) => {
+                      const meta = citationLabel(c.ref);
+                      return (
+                        <li key={i} className="flex gap-2.5 text-sm text-muted">
+                          <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-xs">
+                            {meta.agent ? <span className="font-semibold text-accent">{meta.agent}</span> : null}
+                            {meta.agent ? <span className="text-subtle"> · </span> : null}
+                            <span className="text-fg">{meta.label}</span>
+                          </span>
+                          <span>{c.text}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ) : null}
