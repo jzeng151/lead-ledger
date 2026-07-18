@@ -20,6 +20,30 @@ npm run dev
 
 Open http://localhost:3000, then click "Sync contacts" to pull your HubSpot contacts into the queue.
 
+### HubSpot setup for write-back
+
+Create two custom contact properties in HubSpot before approving anything, under
+Settings > Properties > Contact properties. HubSpot rejects a write to a property
+that does not exist, so without them every approval fails:
+
+| Internal name | Label | Field type |
+| --- | --- | --- |
+| `lead_priority_score` | Lead Priority Score | Number |
+| `lead_grade` | Lead Grade | Single-line text |
+
+The label is what appears on the contact record; the internal name is what the
+app writes to and must match exactly. The token also needs the
+`crm.objects.contacts.write` and `crm.objects.notes.write` scopes, since an
+approval sets the two properties and posts a timeline note.
+
+Without `HUBSPOT_TOKEN`, approving is a dry run: the payload is logged, nothing
+is sent, and the contact shows as "dry run" rather than synced.
+
+Engagement data is read from the contact's association records, which carry ids
+rather than the underlying activity objects, so first-party intent from a live
+portal scores as zero. `LEAD_LEDGER_DEMO=1` reads engagement from the domain
+fixtures instead, which is what the demo spread relies on.
+
 ## Demo walkthrough
 
 1. Sync the queue: with `HUBSPOT_TOKEN` set, click "Sync contacts" to pull contacts from HubSpot (deduped by email). `npm run reset` clears local state back to an empty queue (it deletes synced contacts). For a stable showcase, set `LEAD_LEDGER_DEMO=1` so scoring reads contact + engagement from the domain fixtures (keeping the demo spread) while sync and write-back still use the live token.
