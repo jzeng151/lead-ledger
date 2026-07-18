@@ -117,7 +117,10 @@ export async function runContact(
       unsupported: claims.filter(isRejected).length,
     };
     bus.emit({ agent: "scorer", type: "scoring_started", payload: {} });
-    const s = score({ icpFit, engagement: partials.engagement, verification: verif, identityUnverified: partials.contact?.identityUnverified }, icp);
+    const s = score(
+      { icpFit, engagement: partials.engagement, news: partials.news, verification: verif, identityUnverified: partials.contact?.identityUnverified },
+      icp,
+    );
 
     // Synthesis + citation-integrity gate. Refs whose claim was rejected by
     // verification, or that point at no real dossier field, are stripped. Build
@@ -153,6 +156,7 @@ export async function runContact(
       contactId,
       fit: s.fit,
       engagement: s.engagement,
+      timing: s.timing,
       priority: s.priority,
       grade: s.grade,
       needsReview: s.needsReview,

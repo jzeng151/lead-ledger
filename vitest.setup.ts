@@ -2,7 +2,6 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import Database from "better-sqlite3";
-import { SEED_CONTACTS } from "./src/fixtures/contacts";
 
 // Route the whole suite at a throwaway, per-process SQLite file instead of the
 // demo data.sqlite. This runs before the test files are imported, so when
@@ -53,6 +52,7 @@ db.exec(`
     contact_id text NOT NULL,
     fit integer NOT NULL,
     engagement integer NOT NULL,
+    timing integer,
     priority integer NOT NULL,
     grade text NOT NULL,
     needs_review integer NOT NULL,
@@ -74,15 +74,20 @@ db.exec(`
   );
 `);
 
-// Seed the sample contacts so the adapter smoke test sees a populated DB and does
-// not shell out to `db:push && seed`, which (via drizzle.config) would target the
-// demo data.sqlite. synced_at is stored as Unix seconds to match drizzle's
-// timestamp mode; the exact value is irrelevant to the assertions.
+// The app no longer ships seed contacts (real contacts come from HubSpot), so the
+// suite seeds the one contact the adapter smoke test reads. c-northwind pairs with
+// the northwind.dev enrichment fixture that backs the hubspot mock-tool assertions.
+// A populated DB also stops the smoke test from shelling out to `db:push && seed`,
+// which (via drizzle.config) would target the demo data.sqlite. synced_at is Unix
+// seconds to match drizzle's timestamp mode; the exact value is irrelevant.
+const TEST_CONTACTS = [
+  { id: "c-northwind", name: "Priya Nair", email: "priya@northwind.dev", title: "VP Engineering", companyName: "Northwind Labs", companyDomain: "northwind.dev" },
+];
 const now = Math.floor(Date.now() / 1000);
 const insert = db.prepare(
   "INSERT OR IGNORE INTO contacts (id, name, email, title, company_name, company_domain, props, synced_at) VALUES (?, ?, ?, ?, ?, ?, '{}', ?)",
 );
-for (const c of SEED_CONTACTS) {
+for (const c of TEST_CONTACTS) {
   insert.run(c.id, c.name, c.email, c.title, c.companyName, c.companyDomain, now);
 }
 

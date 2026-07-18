@@ -40,7 +40,8 @@ export const scores = sqliteTable("scores", {
   runId: text("run_id").primaryKey(),
   contactId: text("contact_id").notNull(),
   fit: integer("fit").notNull(),
-  engagement: integer("engagement").notNull(),
+  engagement: integer("engagement").notNull(), // first-party intent, 0-100
+  timing: integer("timing"), // signed news-trigger signal, -100..100
   priority: integer("priority").notNull(),
   grade: text("grade").notNull(),
   needsReview: integer("needs_review", { mode: "boolean" }).notNull(),

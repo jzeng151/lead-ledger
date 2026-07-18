@@ -23,6 +23,7 @@ type Citation = { text: string; ref: string };
 type Score = {
   fit: number;
   engagement: number;
+  timing: number | null;
   priority: number;
   grade: string;
   needsReview: boolean;
@@ -171,7 +172,7 @@ export default function ContactDetailPage() {
                 </span>
               </div>
               <div className="flex-1 sm:border-l sm:border-line sm:pl-6">
-                <ScoreBars fit={score.fit} engagement={score.engagement} />
+                <ScoreBars fit={score.fit} timing={score.timing ?? 0} intent={score.engagement} />
               </div>
             </div>
           </div>

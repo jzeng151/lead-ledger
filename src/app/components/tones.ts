@@ -7,11 +7,13 @@ export const TONE = {
   emerald: "bg-[var(--tone-emerald-bg)] text-[var(--tone-emerald-fg)] ring-[var(--tone-emerald-ring)]",
   sky: "bg-[var(--tone-sky-bg)] text-[var(--tone-sky-fg)] ring-[var(--tone-sky-ring)]",
   amber: "bg-[var(--tone-amber-bg)] text-[var(--tone-amber-fg)] ring-[var(--tone-amber-ring)]",
+  orange: "bg-[var(--tone-orange-bg)] text-[var(--tone-orange-fg)] ring-[var(--tone-orange-ring)]",
   rose: "bg-[var(--tone-rose-bg)] text-[var(--tone-rose-fg)] ring-[var(--tone-rose-ring)]",
   accent: "bg-[var(--tone-accent-bg)] text-[var(--tone-accent-fg)] ring-[var(--tone-accent-ring)]",
 } as const;
 
-const GRADE_TONE: Record<string, keyof typeof TONE> = { A: "emerald", B: "sky", C: "amber", D: "rose" };
+// US academic grades: A emerald, B sky, C amber, D orange, F rose.
+const GRADE_TONE: Record<string, keyof typeof TONE> = { A: "emerald", B: "sky", C: "amber", D: "orange", F: "rose" };
 
 export function gradeTone(grade: string | null): string {
   return TONE[GRADE_TONE[grade ?? ""] ?? "slate"];

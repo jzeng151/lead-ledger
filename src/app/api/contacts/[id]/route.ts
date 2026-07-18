@@ -23,6 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       runId: scores.runId,
       fit: scores.fit,
       engagement: scores.engagement,
+      timing: scores.timing,
       priority: scores.priority,
       grade: scores.grade,
       needsReview: scores.needsReview,

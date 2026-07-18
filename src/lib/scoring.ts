@@ -7,24 +7,76 @@ export function computeFit(icpFit: any, icp: IcpConfig) {
   return Math.round((disqualified ? Math.min(raw, 0.1) : raw) * 100);
 }
 
+// First-party intent (0-100) from recency-weighted engagement actions.
 export function computeEngagement(e: any, icp: IcpConfig) {
   const weightOf = (a: string) => (a === "demo_request" ? 30 : a === "pricing_page_view" ? 20 : 8);
-  const base = Math.min(100, (e.topActions ?? []).reduce((s: number, a: string) => s + weightOf(a), 0));
-  const months = (e.recencyDays ?? 999) / 30;
+  const base = Math.min(100, (e?.topActions ?? []).reduce((s: number, a: string) => s + weightOf(a), 0));
+  const months = (e?.recencyDays ?? 999) / 30;
   const decay = Math.pow(1 - icp.engagementDecayPerMonth, months);
   return Math.round(base * decay);
 }
 
+// Map the News subagent's free-form event `type` to a canonical trigger key that
+// keys into icp.urgency.weights. Unmatched types fall through to "default".
+export function classifyTrigger(type: string | undefined): string {
+  const t = (type ?? "").toLowerCase();
+  if (/down\s*round/.test(t)) return "down_round";
+  if (/fund|raise|series|seed/.test(t)) return "funding";
+  if (/layoff|reduction|\brif\b|headcount cut|job cut/.test(t)) return "layoffs";
+  if (/hire|exec|\bvp\b|cto|chief|head of|leadership/.test(t)) return "exec_hire";
+  if (/incident|outage|downtime|breach|postmortem/.test(t)) return "incident";
+  if (/acqui|merger|m&a|acquired/.test(t)) return "mna";
+  if (/launch|release|general availability|\bga\b|product/.test(t)) return "product_launch";
+  if (/expand|expansion|new office|hiring/.test(t)) return "expansion";
+  return "default";
+}
+
+// Signed timing in [-1, 1] from dated trigger events. Fresh events count fully;
+// stale ones scale by staleFactor. Weights may be negative (distress signals),
+// so a cold lead with only bad news lands below zero.
+export function computeTiming(news: any, icp: IcpConfig): number {
+  const events: any[] = news?.events ?? [];
+  const weights = icp.urgency.weights;
+  let sum = 0;
+  for (const e of events) {
+    const key = classifyTrigger(e?.type);
+    const w = key in weights ? weights[key] : weights.default;
+    sum += w * (e?.fresh === true ? 1 : icp.urgency.staleFactor);
+  }
+  return Math.max(-1, Math.min(1, sum));
+}
+
 export function score(d: any, icp: IcpConfig) {
+  const u = icp.urgency;
   const fit = computeFit(d.icpFit, icp);
-  const engagement = computeEngagement(d.engagement, icp);
-  const priority = Math.round(icp.blend.fit * fit + icp.blend.engagement * engagement);
-  const grade = priority >= 75 ? "A" : priority >= 55 ? "B" : priority >= 35 ? "C" : "D";
+  const engagement = computeEngagement(d.engagement, icp); // 0-100 intent
+  const timing = computeTiming(d.news, icp); // signed -1..1
+
+  // Urgency lifts (or, for a negative trigger, dampens) the fit baseline. Intent
+  // is always non-negative; only timing can push urgency below zero, floored so a
+  // bad trigger nudges rather than overrides fit.
+  const urgency = Math.max(u.floor, Math.min(1, timing + u.intentCoeff * (engagement / 100)));
+  const priority = Math.max(0, Math.min(100, Math.round(fit + u.liftMax * urgency)));
+
+  // Grade reflects fit only (US academic scale), so a great-fit cold lead is still
+  // an A and lack of engagement never drags the letter down.
+  const g = icp.grades;
+  const grade = fit >= g.A ? "A" : fit >= g.B ? "B" : fit >= g.C ? "C" : fit >= g.D ? "D" : "F";
+
   const reasons: string[] = [];
   if ((d.verification?.contradictions ?? []).length) reasons.push("verification contradiction");
   if ((d.verification?.unsupported ?? 0) >= 2) reasons.push("unsupported claims");
   if (priority >= icp.reviewBand[0] && priority <= icp.reviewBand[1]) reasons.push("ambiguous score band");
   if (d.identityUnverified) reasons.push("identity unverified");
   if ((d.icpFit?.conflicts ?? []).length >= 2) reasons.push("subagent conflict");
-  return { fit, engagement, priority, grade, needsReview: reasons.length > 0, reviewReasons: reasons };
+
+  return {
+    fit,
+    engagement, // intent, 0-100
+    timing: Math.round(timing * 100), // signed -100..100 for display/storage
+    priority,
+    grade,
+    needsReview: reasons.length > 0,
+    reviewReasons: reasons,
+  };
 }

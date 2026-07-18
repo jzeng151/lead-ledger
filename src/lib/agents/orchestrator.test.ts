@@ -70,13 +70,15 @@ describe("runContact", () => {
     expect(scoreRow!.needsReview).toBe(true);
     expect(scoreRow!.reviewReasons).toContain("verification contradiction");
 
-    // Numeric scores must equal the real scorer on the same canned inputs, so a
-    // swapped score() argument in the orchestrator cannot pass silently. For this
-    // dossier: fit 50, engagement 0, priority 30, grade D.
+    // Numeric scores must equal the real scorer on the same canned inputs (which
+    // include the news trigger the orchestrator passes through), so a swapped
+    // score() argument cannot pass silently. For this dossier: fit 50, engagement
+    // 0, timing +80 (fresh funding), priority 66, grade F.
     const expected = score(
       {
         icpFit: { firmographic: 0.8, role: 0.3, technographic: 0.3, disqualified: false, dimensions: [], conflicts: ["stale funding", "competitor present"] },
         engagement: { topActions: [], recencyDays: 10, rawSignals: [], attributionUncertain: false },
+        news: { events: [{ type: "funding", fresh: true }] },
         verification: { contradictions: ["role mismatch"], unsupported: 1 },
         identityUnverified: true,
       },
@@ -84,6 +86,7 @@ describe("runContact", () => {
     );
     expect(scoreRow!.fit).toBe(expected.fit);
     expect(scoreRow!.engagement).toBe(expected.engagement);
+    expect(scoreRow!.timing).toBe(expected.timing);
     expect(scoreRow!.priority).toBe(expected.priority);
     expect(scoreRow!.grade).toBe(expected.grade);
 

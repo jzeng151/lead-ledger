@@ -55,6 +55,9 @@
   --tone-amber-bg: #fffbeb;
   --tone-amber-fg: #b45309;
   --tone-amber-ring: rgb(217 119 6 / 0.2);
+  --tone-orange-bg: #fff7ed;
+  --tone-orange-fg: #c2410c;
+  --tone-orange-ring: rgb(234 88 12 / 0.2);
   --tone-rose-bg: #fff1f2;
   --tone-rose-fg: #be123c;
   --tone-rose-ring: rgb(225 29 72 / 0.2);
@@ -91,6 +94,9 @@
   --dk-tone-amber-bg: rgb(245 158 11 / 0.15);
   --dk-tone-amber-fg: #fcd34d;
   --dk-tone-amber-ring: rgb(245 158 11 / 0.3);
+  --dk-tone-orange-bg: rgb(249 115 22 / 0.15);
+  --dk-tone-orange-fg: #fdba74;
+  --dk-tone-orange-ring: rgb(249 115 22 / 0.3);
   --dk-tone-rose-bg: rgb(244 63 94 / 0.15);
   --dk-tone-rose-fg: #fda4af;
   --dk-tone-rose-ring: rgb(244 63 94 / 0.3);
@@ -128,6 +134,9 @@
     --tone-amber-bg: var(--dk-tone-amber-bg);
     --tone-amber-fg: var(--dk-tone-amber-fg);
     --tone-amber-ring: var(--dk-tone-amber-ring);
+    --tone-orange-bg: var(--dk-tone-orange-bg);
+    --tone-orange-fg: var(--dk-tone-orange-fg);
+    --tone-orange-ring: var(--dk-tone-orange-ring);
     --tone-rose-bg: var(--dk-tone-rose-bg);
     --tone-rose-fg: var(--dk-tone-rose-fg);
     --tone-rose-ring: var(--dk-tone-rose-ring);
@@ -162,6 +171,9 @@
   --tone-amber-bg: var(--dk-tone-amber-bg);
   --tone-amber-fg: var(--dk-tone-amber-fg);
   --tone-amber-ring: var(--dk-tone-amber-ring);
+  --tone-orange-bg: var(--dk-tone-orange-bg);
+  --tone-orange-fg: var(--dk-tone-orange-fg);
+  --tone-orange-ring: var(--dk-tone-orange-ring);
   --tone-rose-bg: var(--dk-tone-rose-bg);
   --tone-rose-fg: var(--dk-tone-rose-fg);
   --tone-rose-ring: var(--dk-tone-rose-ring);
