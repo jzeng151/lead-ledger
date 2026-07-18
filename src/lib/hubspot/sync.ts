@@ -5,6 +5,20 @@ import { db, schema } from "../../db";
 const { contacts, runs, runEvents, dossiers, scores, writebacks } = schema;
 
 /**
+ * Reduce HubSpot's free-form `website` to a bare host, because every domain-keyed
+ * tool and enrichment fixture expects one. HubSpot stores values like
+ * "http://Northwind.dev/" or "https://www.example.com/path"; left as-is those
+ * never match a fixture and only work when the model happens to strip the scheme
+ * itself. Returns null when there is nothing usable.
+ */
+export function normalizeDomain(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const noScheme = raw.trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+  const host = noScheme.split(/[/?#]/)[0].replace(/^www\./, "").replace(/\.$/, "");
+  return host || null;
+}
+
+/**
  * Delete a contact and all of its runtime rows (runs, run events, dossiers,
  * scores, writebacks). Used to remove a stale row that a sync is superseding.
  */
@@ -76,7 +90,7 @@ export async function syncContacts(): Promise<{ synced: number; source: "hubspot
       email: p.email ?? null,
       title: p.jobtitle ?? null,
       companyName: p.company ?? null,
-      companyDomain: p.website ?? null,
+      companyDomain: normalizeDomain(p.website),
       props: p as Record<string, unknown>,
       syncedAt: now,
     };

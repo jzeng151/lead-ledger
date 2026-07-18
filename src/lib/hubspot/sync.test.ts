@@ -2,7 +2,23 @@ import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { db, schema } from "../../db";
-import { dedupeByEmail } from "./sync";
+import { dedupeByEmail, normalizeDomain } from "./sync";
+
+describe("normalizeDomain", () => {
+  it("reduces HubSpot's free-form website values to a bare host", () => {
+    expect(normalizeDomain("http://nimbusfreight.co")).toBe("nimbusfreight.co");
+    expect(normalizeDomain("http://Northwind.dev/")).toBe("northwind.dev");
+    expect(normalizeDomain("https://www.Example.com/path?q=1")).toBe("example.com");
+    expect(normalizeDomain("northwind.dev")).toBe("northwind.dev");
+    expect(normalizeDomain("example.com.")).toBe("example.com");
+  });
+
+  it("returns null when there is nothing usable", () => {
+    expect(normalizeDomain(null)).toBeNull();
+    expect(normalizeDomain(undefined)).toBeNull();
+    expect(normalizeDomain("   ")).toBeNull();
+  });
+});
 
 const { contacts, runs, runEvents, dossiers, scores, writebacks } = schema;
 
