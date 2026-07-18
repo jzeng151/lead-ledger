@@ -46,9 +46,12 @@ export function LiveView({ runId, onDone }: { runId: string; onDone?: () => void
         onDoneRef.current?.();
       }
     };
-    // A dropped connection would otherwise trigger EventSource's auto-reconnect;
-    // close so a finished or failed run is not re-subscribed.
-    es.onerror = () => es.close();
+    // Do not close here. A drop before a terminal event (a proxy timing out
+    // during a long tool call) is exactly when the browser's auto-reconnect is
+    // wanted: the stream route replays the run's persisted history on reconnect,
+    // so the view catches up instead of freezing on the last event it saw. The
+    // terminal branch above is what ends a finished run's subscription.
+    es.onerror = () => {};
     return () => es.close();
   }, [runId]);
 
