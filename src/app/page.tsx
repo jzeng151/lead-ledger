@@ -23,6 +23,7 @@ export default function Home() {
   // auto-refresh and the Sync button's disabled + progress state.
   const [activeRuns, setActiveRuns] = useState(0);
   const [approving, setApproving] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("All");
 
   async function loadContacts() {
@@ -85,17 +86,34 @@ export default function Home() {
   // backstop; any such 409 is ignored below.
   async function handleBatchApprove() {
     setApproving(true);
+    setApproveError(null);
     try {
       const targets = rows.filter(isBatchApprovable);
-      await Promise.all(
-        targets.map((r) =>
-          fetch(`/api/writeback/${r.contactId}`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ batch: true }),
-          }).catch(() => {}),
-        ),
+      // fetch resolves on a 4xx/5xx, so a rejected HubSpot write is only visible
+      // through res.ok. Without this check the batch reports success while some
+      // contacts were never written. A 409 is the server's needs-review guard
+      // doing its job, not a failure.
+      const results = await Promise.all(
+        targets.map(async (r) => {
+          try {
+            const res = await fetch(`/api/writeback/${r.contactId}`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ batch: true }),
+            });
+            return res.ok || res.status === 409 ? null : r.name;
+          } catch {
+            return r.name;
+          }
+        }),
       );
+      const failed = results.filter((n): n is string => n !== null);
+      if (failed.length)
+        setApproveError(
+          `${failed.length} write-back${failed.length > 1 ? "s" : ""} failed: ` +
+            failed.slice(0, 3).join(", ") +
+            (failed.length > 3 ? `, +${failed.length - 3} more` : ""),
+        );
       await loadContacts();
     } finally {
       setApproving(false);
@@ -140,6 +158,8 @@ export default function Home() {
           </button>
         </div>
       </header>
+
+      {approveError ? <p className="mb-4 text-sm text-[var(--tone-rose-fg)]">{approveError}</p> : null}
 
       <div className="card overflow-hidden">
         <div className="px-3 pt-2">
