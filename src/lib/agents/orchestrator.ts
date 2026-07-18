@@ -199,6 +199,11 @@ export async function runContact(
     // approved and written to HubSpot with an empty note.
     if (!cleanRationale)
       reviewReasons.push("no rationale: the synthesis step produced no rep-facing verdict for this score");
+    // A rationale with nothing backing it is prose, not evidence. The stripped
+    // check below only fires when a citation was rejected, so a synthesis that
+    // simply cited nothing would otherwise sail through as a clean lead.
+    else if (!gate.kept.length)
+      reviewReasons.push("uncited rationale: the verdict cites no dossier field");
     if (unmatched.length)
       reviewReasons.push(
         `unmatched verification claim: ${unmatched.join(", ")} was rejected but matches no cited field, so the rationale was not filtered`,

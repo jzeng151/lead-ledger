@@ -253,3 +253,39 @@ describe("synthesis produced no rationale", () => {
     expect(db.select().from(schema.runs).where(eq(schema.runs.id, RUN)).get()?.status).toBe("scored");
   });
 });
+
+describe("synthesis wrote a rationale but cited nothing", () => {
+  it("flags the run so unbacked prose is not batch approved", async () => {
+    const RUN = "run-orch-uncited";
+    const CONTACT = "c-orch-uncited";
+    db.insert(schema.contacts)
+      .values({ id: CONTACT, name: "Uncited", companyDomain: "northwind.dev", props: {}, syncedAt: new Date() })
+      .onConflictDoNothing()
+      .run();
+
+    const deps: OrchestratorDeps = {
+      runSub: (async (opts: { agentKey: string }) => {
+        switch (opts.agentKey) {
+          case "verification":
+            return { claims: [], contradictions: [] };
+          case "icpfit":
+            return { firmographic: 0.9, role: 0.9, technographic: 0.9, disqualified: false, dimensions: [], conflicts: [] };
+          case "contact":
+            return { title: f("VP Engineering", "pdl_person_enrich"), identityUnverified: false };
+          default:
+            return {};
+        }
+      }) as unknown as OrchestratorDeps["runSub"],
+      // A confident-sounding verdict with no citations at all, which the
+      // synthesis schema permits.
+      synthesize: async () => ({ rationale: "Great fit, move fast.", nextStep: "Email today.", citations: [] }),
+    };
+
+    await runContact(RUN, CONTACT, deps);
+
+    const row = db.select().from(schema.scores).where(eq(schema.scores.runId, RUN)).get()!;
+    expect(row.rationale).toBe("Great fit, move fast.");
+    expect(row.needsReview).toBe(true);
+    expect((row.reviewReasons as string[]).some((r) => r.startsWith("uncited rationale"))).toBe(true);
+  });
+});
