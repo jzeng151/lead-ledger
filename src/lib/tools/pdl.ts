@@ -1,5 +1,8 @@
 import { pickImpl, loadFixture, fetchWithTimeout, type FieldVal } from "./adapter";
 
+/** Identifiers PDL needs to resolve a person; the domain alone is not enough. */
+export type PersonHint = { name?: string; email?: string };
+
 async function realCompany(domain: string) {
   const res = await fetchWithTimeout(
     `https://api.peopledatalabs.com/v5/company/enrich?website=${domain}`,
@@ -36,11 +39,18 @@ async function mockCompany(domain: string) {
   };
 }
 
-async function realPerson(domain: string) {
-  const res = await fetchWithTimeout(
-    `https://api.peopledatalabs.com/v5/person/enrich?company=${domain}`,
-    { headers: { "X-Api-Key": process.env.PDL_API_KEY! } },
-  );
+async function realPerson(domain: string, person: PersonHint = {}) {
+  // PDL rejects a person request that carries no identifier: it needs an email
+  // (or profile/phone/id), or a name together with a company. company alone is a
+  // 4xx for every contact, which used to fail the contact subagent outright.
+  const q = new URLSearchParams({ company: domain });
+  if (person.email) q.set("email", person.email);
+  if (person.name) q.set("name", person.name);
+  if (!person.email && !person.name) return mockPerson(domain);
+
+  const res = await fetchWithTimeout(`https://api.peopledatalabs.com/v5/person/enrich?${q}`, {
+    headers: { "X-Api-Key": process.env.PDL_API_KEY! },
+  });
   if (!res.ok) throw new Error(`PDL ${res.status}`);
   const d = await res.json();
   const src = "peopledatalabs.com";
@@ -54,7 +64,7 @@ async function realPerson(domain: string) {
     emailVerified: { value: d.email_verified ?? null, confidence: 0.7, source: src },
   };
 }
-async function mockPerson(domain: string) {
+async function mockPerson(domain: string, _person: PersonHint = {}) {
   const p = loadFixture(domain).person ?? {};
   const src = "fixture:pdl";
   return {

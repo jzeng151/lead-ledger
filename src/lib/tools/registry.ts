@@ -22,9 +22,12 @@ export const TOOLS = {
   pdl_person_enrich: betaZodTool({
     name: "pdl_person_enrich",
     description:
-      "Enrich the contact person by company domain: title, seniority, tenure, buying role, email verification.",
-    inputSchema: z.object({ domain: z.string() }),
-    run: ({ domain }) => withTool("pdl_person_enrich", domain, async () => JSON.stringify(await pdlPersonEnrich(domain))),
+      "Enrich the contact person: title, seniority, tenure, buying role, email verification. Pass the contact's name and email along with the company domain; the provider cannot resolve a person from the domain alone.",
+    inputSchema: z.object({ domain: z.string(), name: z.string().optional(), email: z.string().optional() }),
+    run: (i) =>
+      withTool("pdl_person_enrich", i.domain, async () =>
+        JSON.stringify(await pdlPersonEnrich(i.domain, { name: i.name, email: i.email })),
+      ),
   }),
   apollo_org_enrich: betaZodTool({
     name: "apollo_org_enrich",
