@@ -182,3 +182,33 @@ describe("verification claim ids that match no citeable ref", () => {
     expect((row.reviewReasons as string[]).some((r) => r.startsWith("unmatched verification claim"))).toBe(true);
   });
 });
+
+describe("contradicted claims with no run-level contradiction", () => {
+  it("still flags the run for review", async () => {
+    const RUN = "run-orch-contradicted";
+    const CONTACT = "c-orch-contradicted";
+    db.insert(schema.contacts)
+      .values({ id: CONTACT, name: "Contradicted", companyDomain: "northwind.dev", props: {}, syncedAt: new Date() })
+      .onConflictDoNothing()
+      .run();
+
+    // The verifier puts the detail in the claim note and leaves contradictions[]
+    // empty, which the schema allows. The scorer used to see nothing at all.
+    const deps: OrchestratorDeps = {
+      runSub: (async (opts: { agentKey: string }) => {
+        if (opts.agentKey === "verification")
+          return { claims: [{ claimId: "industry", verdict: "contradicted", note: "site sells freight, not software" }], contradictions: [] };
+        return (await (fakeRunSub as any)(opts)) as unknown;
+      }) as unknown as OrchestratorDeps["runSub"],
+      synthesize: fakeSynthesize,
+    };
+
+    await runContact(RUN, CONTACT, deps);
+
+    const row = db.select().from(schema.scores).where(eq(schema.scores.runId, RUN)).get()!;
+    expect(row.needsReview).toBe(true);
+    const reasons = row.reviewReasons as string[];
+    expect(reasons.some((r) => r.startsWith("verification contradiction"))).toBe(true);
+    expect(reasons.some((r) => r.includes("freight"))).toBe(true); // the note reaches the rep
+  });
+});

@@ -132,8 +132,16 @@ export async function runContact(
     // contradiction already surfaces through its own reason, so counting it here
     // too would double-report the same problem under a misleading label.
     const isRejected = (c: any) => c.verdict === "unsupported" || c.verdict === "contradicted";
+    // A claim can be marked contradicted while the run-level contradictions list
+    // is left empty (the detail lives in the claim's note). Without this, the
+    // scorer sees no contradiction and no unsupported count, so a contradicted
+    // claim could pass without review and stay batch-approvable.
+    const contradictedClaims = claims
+      .filter((c: any) => c.verdict === "contradicted")
+      .map((c: any) => `${c.claimId}${c.note ? `: ${c.note}` : ""}`);
+    const declared: string[] = verification.contradictions ?? [];
     const verif = {
-      contradictions: verification.contradictions ?? [],
+      contradictions: declared.length ? declared : contradictedClaims,
       unsupported: claims.filter((c: any) => c.verdict === "unsupported").length,
     };
     bus.emit({ agent: "scorer", type: "scoring_started", payload: {} });
