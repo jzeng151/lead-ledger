@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { db, schema } from "@/db";
 import { applyWriteback } from "@/lib/hubspot/writeback";
+import { activeRunForContact } from "@/lib/runs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +56,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
     }
 
     if (!score) return Response.json({ error: "not scored" }, { status: 400 });
+
+    // A re-run in flight has no score row yet, so the lookup above returns the
+    // previous run's verdict. Writing it would push a priority and note that the
+    // rescore is about to replace. Make the caller wait instead.
+    if (activeRunForContact(contactId))
+      return Response.json({ error: "scoring in progress, try again when the run finishes" }, { status: 409 });
 
     // Batch approval skips needs-review leads; individual approval is always allowed.
     if (body.batch === true && score.needsReview) {
