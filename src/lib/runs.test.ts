@@ -27,3 +27,27 @@ describe("activeRuns", () => {
     expect(activeRunForContact("ar-never-ran")).toBeNull();
   });
 });
+
+describe("staleness is measured from progress, not age", () => {
+  it("keeps an old run active while it is still emitting events", () => {
+    const old = new Date(Date.now() - RUN_STALE_MS - 60_000);
+    db.insert(runs).values({ id: "ar-slow", contactId: "ar-slow-c", status: "running", startedAt: old }).run();
+    // A legitimately slow run (slow provider or model) that is still working.
+    db.insert(schema.runEvents)
+      .values({ runId: "ar-slow", agent: "tech", type: "agent_tool_call", payload: {}, ts: new Date() })
+      .run();
+
+    expect(activeRuns().map((r) => r.id)).toContain("ar-slow");
+    expect(activeRunForContact("ar-slow-c")).toBe("ar-slow");
+  });
+
+  it("expires an old run whose last event is also old", () => {
+    const old = new Date(Date.now() - RUN_STALE_MS - 60_000);
+    db.insert(runs).values({ id: "ar-hung", contactId: "ar-hung-c", status: "running", startedAt: old }).run();
+    db.insert(schema.runEvents)
+      .values({ runId: "ar-hung", agent: "tech", type: "agent_tool_call", payload: {}, ts: old })
+      .run();
+
+    expect(activeRuns().map((r) => r.id)).not.toContain("ar-hung");
+  });
+});
