@@ -5,7 +5,7 @@ import { db, schema } from "@/db";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const { contacts, scores, runs } = schema;
+const { contacts, scores, runs, writebacks } = schema;
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -39,9 +39,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .all();
 
   let score: Omit<(typeof scoreRows)[number], "startedAt" | "runId"> | null = null;
-  // The latest run for this contact: the run behind the latest scored row, else
-  // the newest run row (a run that errored before scoring still counts), else null.
-  let latestRunId: string | null = null;
   let latestStartedAt = -Infinity;
   for (const s of scoreRows) {
     const t = s.startedAt ? s.startedAt.getTime() : 0;
@@ -49,21 +46,26 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       latestStartedAt = t;
       const { startedAt: _startedAt, runId: _runId, ...rest } = s;
       score = rest;
-      latestRunId = s.runId;
     }
   }
 
-  if (!latestRunId) {
-    const runRows = db.select({ id: runs.id, startedAt: runs.startedAt }).from(runs).where(eq(runs.contactId, id)).all();
-    let newest = -Infinity;
-    for (const r of runRows) {
-      const t = r.startedAt ? r.startedAt.getTime() : 0;
-      if (t >= newest) {
-        newest = t;
-        latestRunId = r.id;
-      }
+  // The newest run row, scored or not. Deriving this from the scored row instead
+  // would pin the detail page to the last successful run: a re-run still in
+  // flight, or one that errored before writing a score, would replay the older
+  // completed trace and hide what is actually happening.
+  let latestRunId: string | null = null;
+  let newest = -Infinity;
+  for (const r of db.select({ id: runs.id, startedAt: runs.startedAt }).from(runs).where(eq(runs.contactId, id)).all()) {
+    const t = r.startedAt ? r.startedAt.getTime() : 0;
+    if (t >= newest) {
+      newest = t;
+      latestRunId = r.id;
     }
   }
 
-  return Response.json({ contact, score, latestRunId });
+  // The persisted approve/skip decision, so the panel can rehydrate it instead of
+  // offering the buttons again after a refresh.
+  const wb = db.select({ status: writebacks.status }).from(writebacks).where(eq(writebacks.contactId, id)).get();
+
+  return Response.json({ contact, score, latestRunId, writebackStatus: wb?.status ?? null });
 }
