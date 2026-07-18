@@ -1,8 +1,7 @@
-import { eq } from "drizzle-orm";
-
 import { db, schema } from "@/db";
 import { syncContacts } from "@/lib/hubspot/sync";
 import { runContact } from "@/lib/agents/orchestrator";
+import { activeRuns } from "@/lib/runs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,14 +22,9 @@ export async function POST() {
   // A contact whose run is still in flight has no score row yet, so scoring alone
   // is not enough to exclude it: without this a second Sync would queue duplicate
   // runs for the same contacts, burning API calls and racing the persisted score.
-  const inFlight = new Set(
-    db
-      .select({ contactId: runs.contactId })
-      .from(runs)
-      .where(eq(runs.status, "running"))
-      .all()
-      .map((r) => r.contactId),
-  );
+  // activeRuns applies the staleness cutoff, so a run whose process died does not
+  // strand its contact as permanently unsyncable.
+  const inFlight = new Set(activeRuns().map((r) => r.contactId));
 
   const pending = contactRows.filter((c) => !scored.has(c.id) && !inFlight.has(c.id));
 

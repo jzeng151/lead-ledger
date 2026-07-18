@@ -1,22 +1,8 @@
-import { eq } from "drizzle-orm";
-
-import { db, schema } from "@/db";
 import { onActivity, offActivity } from "@/lib/runStore";
+import { activeRuns } from "@/lib/runs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-// Count in-flight scoring runs, ignoring any stuck "running" run older than 10
-// minutes (its process died mid-run) so a crash can't pin the dashboard.
-function runningCount(): number {
-  const cutoff = Date.now() - 10 * 60 * 1000;
-  return db
-    .select({ startedAt: schema.runs.startedAt })
-    .from(schema.runs)
-    .where(eq(schema.runs.status, "running"))
-    .all()
-    .filter((r) => (r.startedAt?.getTime() ?? 0) > cutoff).length;
-}
 
 // Server-sent stream the dashboard subscribes to. Emits the current running count
 // on connect and on every run lifecycle transition (start/score/error), pushed
@@ -29,7 +15,7 @@ export async function GET(req: Request) {
       const send = () => {
         if (closed) return;
         try {
-          controller.enqueue(enc.encode(`data: ${JSON.stringify({ running: runningCount() })}\n\n`));
+          controller.enqueue(enc.encode(`data: ${JSON.stringify({ running: activeRuns().length })}\n\n`));
         } catch {
           /* controller closed */
         }
