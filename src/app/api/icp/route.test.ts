@@ -38,3 +38,18 @@ describe("ICP patch merge", () => {
     expect(stored.grades.B).toBe(DEFAULT_ICP.grades.B);
   });
 });
+
+describe("ICP validation", () => {
+  it("rejects a malformed patch instead of persisting it", async () => {
+    const good = await put({ grades: { A: 91 } });
+    expect(good.grades.A).toBe(91);
+
+    for (const bad of [{ weights: null }, { reviewBand: "off" }, { urgency: { weights: null } }]) {
+      const res = await PUT(new Request("http://test/api/icp", { method: "PUT", body: JSON.stringify(bad) }));
+      expect(res.status, JSON.stringify(bad)).toBe(400);
+    }
+
+    // The last good config is still the one on disk.
+    expect((await (await GET()).json()).grades.A).toBe(91);
+  });
+});
