@@ -106,14 +106,18 @@ export async function syncContacts(): Promise<{
   source: "hubspot" | "fixtures";
   /** Contacts whose company domain changed, so their stored dossier is now for the wrong company. */
   domainChanged: string[];
+  /** True when the page cap stopped the pull before HubSpot ran out of contacts. */
+  truncated: boolean;
 }> {
   const token = process.env.HUBSPOT_TOKEN;
-  if (!token) return { synced: 0, source: "fixtures", domainChanged: [] };
+  if (!token) return { synced: 0, source: "fixtures", domainChanged: [], truncated: false };
 
   // Page through the portal. HubSpot caps a page at 100, so a single fetch would
   // silently drop every contact past the first 100 even though the Sync button
   // presents this as a full sync. MAX_PAGES bounds a runaway cursor.
-  const MAX_PAGES = 50;
+  // 100 contacts a page. High enough that no realistic portal is cut short, and
+  // a cap that is reached is reported rather than passed off as a full import.
+  const MAX_PAGES = 200;
   const results: HubspotResult[] = [];
   let after: string | undefined;
   let complete = false;
@@ -178,5 +182,5 @@ export async function syncContacts(): Promise<{
     for (const c of db.select({ id: contacts.id }).from(contacts).all()) if (!live.has(c.id)) purgeContact(c.id);
   }
 
-  return { synced: results.length, source: "hubspot", domainChanged };
+  return { synced: results.length, source: "hubspot", domainChanged, truncated: !complete };
 }

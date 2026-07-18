@@ -9,7 +9,16 @@ import { activeRunForContact, activeRuns } from "@/lib/runs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const { contacts, scores, runs } = schema;
+const { contacts, scores, writebacks } = schema;
+
+/** Wait out a run that is already scoring this contact, so the re-queue can follow it. */
+async function waitForIdle(contactId: string, timeoutMs = 10 * 60 * 1000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (activeRunForContact(contactId) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  return !activeRunForContact(contactId);
+}
 
 export async function POST() {
   // Surface a HubSpot failure (expired token, rate limit) as a JSON error the
@@ -17,8 +26,9 @@ export async function POST() {
   let synced: number;
   let source: "hubspot" | "fixtures";
   let domainChanged: string[];
+  let truncated: boolean;
   try {
-    ({ synced, source, domainChanged } = await syncContacts());
+    ({ synced, source, domainChanged, truncated } = await syncContacts());
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
   }
@@ -38,10 +48,14 @@ export async function POST() {
   // strand its contact as permanently unsyncable.
   const inFlight = new Set(activeRuns().map((r) => r.contactId));
 
-  // A contact whose domain just changed is re-queued even though it has a score:
-  // that score was computed against a different company.
+  // A contact whose domain just changed is re-queued even though it has a score.
+  // It stays queued even with a run in flight: that run started before the sync,
+  // so it is reading the old domain and will stage a clean score for the wrong
+  // company. The batch waits for it to finish and then re-runs.
   const restale = new Set(domainChanged);
-  const pending = contactRows.filter((c) => (!scored.has(c.id) || restale.has(c.id)) && !inFlight.has(c.id));
+  const pending = contactRows.filter(
+    (c) => (!scored.has(c.id) || restale.has(c.id)) && (restale.has(c.id) || !inFlight.has(c.id)),
+  );
 
   // Flag the stale scores now, before the batch gets to them. Only the first
   // chunk starts immediately, so without this a rep could batch-approve a
@@ -58,6 +72,16 @@ export async function POST() {
         .where(eq(scores.runId, row.runId))
         .run();
     }
+    // needsReview alone is not enough: the queue reports a written contact as
+    // synced before it looks at the flag, so a stale verdict already pushed to
+    // HubSpot would stay hidden. A claimed write is left alone (the write-back
+    // route reconciles it), and a skip stays a human decision.
+    const wb = db.select().from(writebacks).where(eq(writebacks.contactId, id)).get();
+    if (wb?.status === "written")
+      db.update(writebacks)
+        .set({ status: "pending", approvedAt: null, writtenAt: null })
+        .where(eq(writebacks.contactId, id))
+        .run();
   }
 
   // Cap fan-out: run the unscored contacts in small sequential chunks so a sync
@@ -74,11 +98,19 @@ export async function POST() {
       // minutes after this list was built, by which time another sync or a manual
       // re-run may already have started the same contact. runContact has no guard
       // of its own, so two runs would race to write one score.
-      const chunk = pending.slice(i, i + CONCURRENCY).filter((c) => !activeRunForContact(c.id));
-      // contactId keeps the runId unique even if two runs mint in the same ms.
-      await Promise.allSettled(chunk.map((c) => runContact(`run-${c.id}-${Date.now()}`, c.id)));
+      const chunk = pending.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(
+        chunk.map(async (c) => {
+          // A re-queued contact waits for the run that is already going (it read
+          // the old domain) and then runs again. Anything else just yields: its
+          // in-flight run is the one that was wanted.
+          if (activeRunForContact(c.id) && !(restale.has(c.id) && (await waitForIdle(c.id)))) return;
+          // contactId keeps the runId unique even if two runs mint in the same ms.
+          return runContact(`run-${c.id}-${Date.now()}`, c.id);
+        }),
+      );
     }
   });
 
-  return Response.json({ synced, source, queued: pending.length });
+  return Response.json({ synced, source, queued: pending.length, truncated });
 }

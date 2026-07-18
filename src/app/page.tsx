@@ -83,6 +83,11 @@ export default function Home() {
         setSyncError(detail?.error ? `Sync failed: ${detail.error}` : `Sync failed (${res.status})`);
         return;
       }
+      // A pull that hit the page cap is a partial import, and Sync presents
+      // itself as a full one. Say so rather than letting it read as complete.
+      const body = await res.json().catch(() => null);
+      if (body?.truncated)
+        setSyncError(`Partial sync: ${body.synced} contacts imported, the portal has more. Run Sync again.`);
       await loadContacts();
       // The sync returns after the pull; scoring runs fire in the background. The
       // activity poll above keeps the queue and the button's scoring state current.
