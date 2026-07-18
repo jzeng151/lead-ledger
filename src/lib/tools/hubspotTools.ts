@@ -59,13 +59,20 @@ async function mockContact(id: string): Promise<HubspotContact> {
   };
 }
 
+// Association records only: this returns associated record ids and labels, not
+// the activity objects themselves, so it yields no actions and no recency. It is
+// reported as unattributed raw signal rather than mapped to buyer intent, which
+// would need the individual call/email/meeting/note objects. A failure here is
+// not fatal: engagement is one input among several, and a contact with no
+// readable activity is a normal state, not a broken run.
 async function realEngagements(contactId: string): Promise<Engagement> {
+  const empty: Engagement = { topActions: [], recencyDays: null, rawSignals: [], attributionUncertain: true };
   const res = await fetchWithTimeout(
     `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}/associations/engagements`,
     { headers: { Authorization: `Bearer ${process.env.HUBSPOT_TOKEN}` } },
-  );
-  if (!res.ok) throw new Error(`HubSpot ${res.status}`);
-  const results = (await res.json()).results ?? [];
+  ).catch(() => null);
+  if (!res || !res.ok) return empty;
+  const results = (await res.json().catch(() => ({}))).results ?? [];
   return {
     topActions: [],
     recencyDays: null,
