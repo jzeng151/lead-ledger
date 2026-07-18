@@ -32,6 +32,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       };
       bus.on(handler);
 
+      // Anything persisted between the replay query and this subscription reached
+      // neither: not the replay, not the handler. Flush that gap now. emit()
+      // persists before it notifies, and nothing can run between bus.on and this
+      // query in the same tick, so this cannot deliver an event twice.
+      const gap = db
+        .select()
+        .from(schema.runEvents)
+        .where(and(eq(schema.runEvents.runId, runId), gt(schema.runEvents.id, lastId)))
+        .orderBy(asc(schema.runEvents.id))
+        .all();
+      for (const r of gap) send({ agent: r.agent, type: r.type, payload: r.payload });
+      if (gap.length) lastId = gap[gap.length - 1].id;
+
       // A run can finish between the status read above and this subscription. The
       // terminal event is then neither replayed nor observed, and the connection
       // hangs with the live view stuck on "running". Poll the run row: if it has
