@@ -18,6 +18,15 @@ describe("normalizeDomain", () => {
     expect(normalizeDomain(undefined)).toBeNull();
     expect(normalizeDomain("   ")).toBeNull();
   });
+
+  it("rejects placeholders a rep typed into the website field", () => {
+    // "N/A" used to reduce to the host "n", which looked usable enough to
+    // suppress the email fallback and then keyed every tool lookup off junk.
+    expect(normalizeDomain("N/A")).toBeNull();
+    expect(normalizeDomain("none")).toBeNull();
+    expect(normalizeDomain("tbd")).toBeNull();
+    expect(normalizeDomain("-")).toBeNull();
+  });
 });
 
 const { contacts, runs, runEvents, dossiers, scores, writebacks } = schema;

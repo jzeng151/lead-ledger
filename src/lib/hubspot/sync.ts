@@ -15,7 +15,10 @@ export function normalizeDomain(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const noScheme = raw.trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
   const host = noScheme.split(/[/?#]/)[0].replace(/^www\./, "").replace(/\.$/, "");
-  return host || null;
+  // Require an actual domain shape. Reps type placeholders into this field, and
+  // "N/A" used to reduce to the host "n", which looks usable enough to suppress
+  // the email fallback and then keys every tool lookup off junk.
+  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$/.test(host) ? host : null;
 }
 
 /**
