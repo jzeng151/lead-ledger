@@ -77,6 +77,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
       // pending, so a skip recorded against the old score would silently vanish.
       if (activeRunForContact(contactId))
         return Response.json({ error: "scoring in progress, try again when the run finishes" }, { status: 409 });
+      // A claimed write finishes by upserting "written", which would bury a skip
+      // recorded in the meantime and show the contact as synced against the
+      // rep's decision.
+      const claimed = db.select({ status: writebacks.status }).from(writebacks).where(eq(writebacks.contactId, contactId)).get();
+      if (claimed?.status === "writing")
+        return Response.json({ error: "a write is already in progress" }, { status: 409 });
       const now = new Date();
       db.insert(writebacks)
         .values({ contactId, status: "skipped", payload: null, approvedAt: now })

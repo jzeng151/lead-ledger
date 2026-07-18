@@ -111,3 +111,26 @@ describe("cross-site protection", () => {
     expect(ok.status).toBe(409);
   });
 });
+
+describe("skip versus a claimed write", () => {
+  it("refuses a skip while a write is in flight", async () => {
+    const now = new Date(Date.now() - 60_000);
+    db.insert(contacts).values({ id: "wbk-c", name: "Skip Clash", props: {}, syncedAt: now }).run();
+    db.insert(runs).values({ id: "wbk-run", contactId: "wbk-c", status: "scored", startedAt: now }).run();
+    db.insert(scores)
+      .values({ runId: "wbk-run", contactId: "wbk-c", fit: 80, engagement: 0, priority: 80, grade: "B", needsReview: false, reviewReasons: [], citations: [] })
+      .run();
+    db.insert(schema.writebacks)
+      .values({ contactId: "wbk-c", status: "writing", payload: {}, approvedAt: new Date() })
+      .run();
+
+    const res = await POST(
+      new Request("http://test/api/writeback/wbk-c", { method: "POST", body: JSON.stringify({ skip: true }) }),
+      { params: Promise.resolve({ contactId: "wbk-c" }) },
+    );
+
+    // The in-flight write finishes by upserting "written", which would bury the
+    // skip and show the contact as synced against the rep's decision.
+    expect(res.status).toBe(409);
+  });
+});
