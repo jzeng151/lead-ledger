@@ -2,6 +2,11 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 
 import { detectTechStack } from "./techstack";
 
+// The live path resolves the hostname before fetching; northwind.dev is fictional.
+vi.mock("node:dns/promises", () => ({
+  default: { lookup: vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]) },
+}));
+
 const html = (body: string) => vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200 })));
 
 afterEach(() => {

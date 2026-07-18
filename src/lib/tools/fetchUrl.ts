@@ -1,3 +1,5 @@
+import dns from "node:dns/promises";
+
 import { fetchWithTimeout } from "./adapter";
 
 /**
@@ -102,10 +104,34 @@ async function readCapped(res: Response): Promise<string> {
  * response comes back to the model even though that target would be rejected if
  * requested directly.
  */
+/**
+ * Reject a hostname whose DNS record points inside the network.
+ *
+ * The literal check above only sees the string, so "internal.example.com" with
+ * an A record of 127.0.0.1 (trivial to arrange, and services like nip.io hand it
+ * out for free) sails through it. Resolving first closes that.
+ *
+ * This is not proof against DNS rebinding: the name is resolved here and again
+ * by fetch, and the answer can change in between. Pinning the connection to a
+ * vetted address needs a custom dispatcher, which is more than this path is
+ * worth given live tools are off by default and the write path is human-gated.
+ */
+async function resolvesPublicly(hostname: string): Promise<boolean> {
+  // A literal address was already range-checked; no lookup to do.
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.includes(":")) return true;
+  try {
+    const addrs = await dns.lookup(hostname, { all: true });
+    return addrs.length > 0 && addrs.every((a) => isPublicHttpUrl(`http://${a.family === 6 ? `[${a.address}]` : a.address}`));
+  } catch {
+    return false; // unresolvable: nothing to fetch anyway
+  }
+}
+
 async function fetchGuarded(url: string): Promise<Response | null> {
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (!isPublicHttpUrl(current)) return null;
+    if (!(await resolvesPublicly(new URL(current).hostname))) return null;
     const res = await fetchWithTimeout(current, { redirect: "manual" });
     if (res.status < 300 || res.status >= 400) return res;
 

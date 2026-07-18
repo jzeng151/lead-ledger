@@ -2,6 +2,12 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 
 import { fetchUrl, isPublicHttpUrl } from "./fetchUrl";
 
+// The guard resolves hostnames before fetching. Tests use fictional domains that
+// do not resolve, so stand in for the resolver; the private-address case gets an
+// explicit override below.
+const lookup = vi.hoisted(() => vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]));
+vi.mock("node:dns/promises", () => ({ default: { lookup } }));
+
 describe("isPublicHttpUrl", () => {
   it("allows ordinary public http(s) targets", () => {
     expect(isPublicHttpUrl("https://northwind.dev")).toBe(true);
@@ -55,6 +61,24 @@ describe("fetchUrl", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200 })));
     const text = await fetchUrl("https://northwind.dev");
     expect(text.length).toBe(512 * 1024);
+  });
+});
+
+describe("hostname resolution", () => {
+  it("refuses a public-looking name whose DNS record points inside the network", async () => {
+    // The literal check cannot see this: only the resolved address gives it away.
+    lookup.mockResolvedValueOnce([{ address: "127.0.0.1", family: 4 }]);
+    const spy = vi.fn();
+    vi.stubGlobal("fetch", spy);
+
+    expect(await fetchUrl("https://internal.example.com")).toBe("");
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("refuses a name that does not resolve at all", async () => {
+    lookup.mockRejectedValueOnce(new Error("ENOTFOUND"));
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("x", { status: 200 })));
+    expect(await fetchUrl("https://nope.invalid")).toBe("");
   });
 });
 
