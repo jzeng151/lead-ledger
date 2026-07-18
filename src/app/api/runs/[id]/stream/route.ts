@@ -11,8 +11,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     start(controller) {
       const enc = new TextEncoder();
       let closed = false;
-      const send = (e: unknown) => { if (!closed) controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`)); };
       const close = () => { if (!closed) { closed = true; try { controller.close(); } catch {} } };
+      // Never let a write failure escape. send() runs inside the RunBus listener,
+      // which runs inside bus.emit() inside runContact, so a viewer closing the
+      // page mid-run would throw all the way back and mark a healthy scoring run
+      // as failed. A dead client just ends this subscription.
+      const send = (e: unknown) => {
+        if (closed) return;
+        try {
+          controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`));
+        } catch {
+          close();
+        }
+      };
 
       // 1. replay persisted history
       const rows = db.select().from(schema.runEvents).where(eq(schema.runEvents.runId, runId)).orderBy(asc(schema.runEvents.id)).all();
@@ -25,7 +36,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       const runRow = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get();
       const terminal = runRow?.status === "scored" || runRow?.status === "error";
       const bus = getBus(runId);
-      if (terminal || !bus) { send({ type: "stream_end" }); close(); return; }
+      if (terminal) { send({ type: "stream_end" }); close(); return; }
+      if (!bus) {
+        // The row says running but nothing is driving it: the process that owned
+        // this run is gone (a restart, a killed background task). stream_end alone
+        // reads as a successful finish in the live view, which would show the
+        // contact as done with no score and no failure.
+        send({
+          agent: "orchestrator",
+          type: "agent_error",
+          payload: { message: "this run is no longer being processed; start a new one" },
+        });
+        send({ type: "stream_end" });
+        close();
+        return;
+      }
       const handler = (e: { type: string }) => {
         send(e);
         if (e.type === "run_completed" || e.type === "agent_error") { bus.off(handler); stopWatch(); setTimeout(close, 50); }
