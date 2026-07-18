@@ -112,10 +112,16 @@ export async function runContact(
 
     // Verification and ICP-fit judge the raw partials in parallel.
     const dossierJson = JSON.stringify({ ...partials, icp });
-    const [verification, icpFit] = (await Promise.all([
+    // allSettled for the same reason as the fan-out: a rejecting Promise.all
+    // would end the run while the other judge was still streaming, and its events
+    // would land after the terminal one.
+    const judged = await Promise.allSettled([
       deps.runSub({ bus, agentKey: VERIFICATION.key, system: VERIFICATION.system, schema: VERIFICATION.schema, input: dossierJson }),
       deps.runSub({ bus, agentKey: ICPFIT.key, system: ICPFIT.system, schema: ICPFIT.schema, input: dossierJson }),
-    ])) as [any, any];
+    ]);
+    const judgeFailure = judged.find((r) => r.status === "rejected");
+    if (judgeFailure) throw (judgeFailure as PromiseRejectedResult).reason;
+    const [verification, icpFit] = judged.map((r) => (r as PromiseFulfilledResult<any>).value) as [any, any];
 
     // Deterministic score. Adapt verification to the scorer's shape. A claim the
     // fact-checker marked unsupported or contradicted trips review and is stripped
