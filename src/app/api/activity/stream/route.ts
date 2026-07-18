@@ -12,12 +12,32 @@ export async function GET(req: Request) {
     start(controller) {
       const enc = new TextEncoder();
       let closed = false;
+      let heartbeat: ReturnType<typeof setInterval> | undefined;
+
+      // A function declaration, and defined before send(): the initial snapshot
+      // below can fail on an already-gone client, and a const arrow would still
+      // be in its temporal dead zone at that point.
+      function close() {
+        if (closed) return;
+        closed = true;
+        if (heartbeat) clearInterval(heartbeat);
+        offActivity(handler);
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
+        }
+      }
+
       const send = () => {
         if (closed) return;
         try {
           controller.enqueue(enc.encode(`data: ${JSON.stringify({ running: activeRuns().length })}\n\n`));
         } catch {
-          /* controller closed */
+          // The tab is gone and the abort listener has not fired yet. Tear down
+          // here too, or every such disconnect leaves a listener and a 30s timer
+          // behind, querying activeRuns() for a client that no longer exists.
+          close();
         }
       };
       const handler = () => send();
@@ -28,20 +48,9 @@ export async function GET(req: Request) {
       // past the stale cutoff, so an open dashboard would keep the last nonzero
       // count and leave Sync disabled until a reload. Re-send periodically so the
       // count drops on its own.
-      const heartbeat = setInterval(send, 30_000);
+      heartbeat = setInterval(send, 30_000);
       (heartbeat as unknown as { unref?: () => void }).unref?.();
 
-      const close = () => {
-        if (closed) return;
-        closed = true;
-        clearInterval(heartbeat);
-        offActivity(handler);
-        try {
-          controller.close();
-        } catch {
-          /* already closed */
-        }
-      };
       req.signal?.addEventListener?.("abort", close);
     },
   });
