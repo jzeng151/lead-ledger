@@ -20,10 +20,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (running) return Response.json({ runId: running, alreadyRunning: true });
 
   const runId = `run-${contactId}-${Date.now()}`;
-  // runContact creates the runs row + bus synchronously before its first await, so by the
-  // time we return, the bus is live and early events are persisted. after() keeps the rest
-  // of the work inside the route lifecycle, so a host that freezes the instance once the
-  // response is sent cannot strand this run in "running".
-  after(() => runContact(runId, contactId).catch((e) => console.error("run failed", runId, e)));
+  // Start it now, do not defer the call: runContact creates the runs row and the
+  // bus synchronously before its first await, and the contact page opens the
+  // stream for this runId the moment this responds. Deferring the whole call
+  // meant the stream found no row and no bus and immediately ended, and a second
+  // quick POST slipped past the active-run guard.
+  const started = runContact(runId, contactId).catch((e) => console.error("run failed", runId, e));
+  // after() keeps the already-started work tied to the route lifecycle, so a host
+  // that freezes the instance once the response is sent cannot strand the run.
+  after(() => started);
   return Response.json({ runId });
 }
