@@ -72,10 +72,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
       return Response.json({ error: "needs manual review" }, { status: 409 });
     }
 
+    const prior = db.select().from(writebacks).where(eq(writebacks.contactId, contactId)).get();
+
+    // A batch approval can be launched from a tab whose row list predates a skip
+    // made elsewhere. Skip is an explicit human decision, so the batch must not
+    // quietly overwrite it; an individual approve still can, since the rep is
+    // looking at that contact.
+    if (body.batch === true && prior?.status === "skipped")
+      return Response.json({ error: "skipped by a human" }, { status: 409 });
+
     // Idempotency: if this exact score was already written, return the prior
     // result instead of posting a second HubSpot note for the same verdict. A
     // re-run that changes the score is still allowed through.
-    const prior = db.select().from(writebacks).where(eq(writebacks.contactId, contactId)).get();
     const priorPayload = prior?.payload as { properties?: { lead_priority_score?: number; lead_grade?: string } } | null;
     if (
       prior?.status === "written" &&

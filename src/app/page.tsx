@@ -113,12 +113,12 @@ export default function Home() {
               body: JSON.stringify({ batch: true }),
             });
             if (res.ok) return null;
-            // 409 covers two cases: the needs-review guard doing its job (the
-            // batch is meant to skip those), and the contact being re-scored
-            // right now, which is a real miss the rep needs to know about.
+            // 409 covers guards the batch is meant to respect (needs review, an
+            // existing human skip) and one it is not: the contact being
+            // re-scored right now, which is a real miss the rep should see.
             if (res.status === 409) {
               const body = await res.json().catch(() => null);
-              return /needs manual review/i.test(body?.error ?? "") ? null : r.name;
+              return /needs manual review|skipped by a human/i.test(body?.error ?? "") ? null : r.name;
             }
             return r.name;
           } catch {
