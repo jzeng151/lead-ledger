@@ -1,5 +1,5 @@
 import { db, schema } from "@/db";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and, gt } from "drizzle-orm";
 import { getBus } from "@/lib/runStore";
 
 export const runtime = "nodejs";
@@ -17,6 +17,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       // 1. replay persisted history
       const rows = db.select().from(schema.runEvents).where(eq(schema.runEvents.runId, runId)).orderBy(asc(schema.runEvents.id)).all();
       for (const r of rows) send({ agent: r.agent, type: r.type, payload: r.payload });
+      let lastId = rows.length ? rows[rows.length - 1].id : 0;
 
       // 2. attach to live bus, or end if the run is done. A finished run keeps its
       // bus alive for a 30s tail; subscribing to that idle bus would hang forever
@@ -27,10 +28,39 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       if (terminal || !bus) { send({ type: "stream_end" }); close(); return; }
       const handler = (e: { type: string }) => {
         send(e);
-        if (e.type === "run_completed" || e.type === "agent_error") { bus.off(handler); setTimeout(close, 50); }
+        if (e.type === "run_completed" || e.type === "agent_error") { bus.off(handler); stopWatch(); setTimeout(close, 50); }
       };
       bus.on(handler);
-      req.signal?.addEventListener?.("abort", () => { bus.off(handler); close(); });
+
+      // A run can finish between the status read above and this subscription. The
+      // terminal event is then neither replayed nor observed, and the connection
+      // hangs with the live view stuck on "running". Poll the run row: if it has
+      // finished without this handler seeing the end, flush whatever was
+      // persisted after the replay and close. The handler only misses events when
+      // it attached late, so this cannot double-send.
+      const watch = setInterval(() => {
+        if (closed) return stopWatch();
+        const row = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get();
+        if (row?.status !== "scored" && row?.status !== "error") return;
+        const missed = db
+          .select()
+          .from(schema.runEvents)
+          .where(and(eq(schema.runEvents.runId, runId), gt(schema.runEvents.id, lastId)))
+          .orderBy(asc(schema.runEvents.id))
+          .all();
+        for (const r of missed) send({ agent: r.agent, type: r.type, payload: r.payload });
+        if (missed.length) lastId = missed[missed.length - 1].id;
+        bus.off(handler);
+        stopWatch();
+        send({ type: "stream_end" });
+        close();
+      }, 2000);
+      (watch as unknown as { unref?: () => void }).unref?.();
+      function stopWatch() {
+        clearInterval(watch);
+      }
+
+      req.signal?.addEventListener?.("abort", () => { bus.off(handler); stopWatch(); close(); });
     },
   });
   return new Response(stream, {
