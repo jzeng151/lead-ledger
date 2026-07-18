@@ -65,17 +65,24 @@ async function mockContact(id: string): Promise<HubspotContact> {
 // would need the individual call/email/meeting/note objects. A failure here is
 // not fatal: engagement is one input among several, and a contact with no
 // readable activity is a normal state, not a broken run.
-async function realEngagements(contactId: string): Promise<Engagement> {
+// Exported for tests: pickImpl binds the chosen implementation at import, so the
+// real path cannot be reached by stubbing the environment afterwards.
+export async function realEngagements(contactId: string): Promise<Engagement> {
   // attributionUncertain means "there is activity here that cannot be tied to
   // the corporate domain", which is a review reason. An empty timeline is an
   // ordinary state, not an uncertainty, and flagging it kept normal contacts out
   // of batch approval for having no activity at all.
   const empty: Engagement = { topActions: [], recencyDays: null, rawSignals: [], attributionUncertain: false };
+  // A timeline we could not read (403, 429, timeout) is not the same finding as a
+  // timeline that is genuinely empty. Reporting both as a confident zero let a
+  // contact be batch approved on the strength of activity data that was never
+  // available; attributionUncertain is the flag that says so.
+  const unreadable: Engagement = { ...empty, attributionUncertain: true };
   const res = await fetchWithTimeout(
     `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}/associations/engagements`,
     { headers: { Authorization: `Bearer ${process.env.HUBSPOT_TOKEN}` } },
   ).catch(() => null);
-  if (!res || !res.ok) return empty;
+  if (!res || !res.ok) return unreadable;
   const results = (await res.json().catch(() => ({}))).results ?? [];
   const rows = Array.isArray(results) ? results : [];
   if (!rows.length) return empty;

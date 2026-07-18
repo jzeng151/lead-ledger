@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { execSync } from "node:child_process";
 import { db, schema } from "../../db";
 import { loadFixture } from "./adapter";
@@ -10,7 +10,7 @@ import { webSearch } from "./websearch";
 import { fetchUrl } from "./fetchUrl";
 import { detectTechStack } from "./techstack";
 import { githubOrgLookup } from "./github";
-import { hubspotGetContact, hubspotGetEngagements } from "./hubspotTools";
+import { hubspotGetContact, hubspotGetEngagements, realEngagements } from "./hubspotTools";
 
 const DOMAIN = "northwind.dev";
 
@@ -110,5 +110,23 @@ describe("enrichment adapters read fixtures on the mock path (no keys)", () => {
   });
   it("hubspotGetEngagements -> engagement fixture", async () => {
     expect((await hubspotGetEngagements("c-northwind")).recencyDays).toBe(3);
+  });
+});
+
+describe("engagement timeline availability", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("marks an unreadable timeline uncertain, and a genuinely empty one certain", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 403 })));
+    const unreadable = await realEngagements("c-northwind");
+    // Reported as a confident zero, a 403 or a timeout let a lead be batch
+    // approved on activity data that was never actually available.
+    expect(unreadable.topActions).toEqual([]);
+    expect(unreadable.attributionUncertain).toBe(true);
+
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ results: [] })));
+    const empty = await realEngagements("c-northwind");
+    // A quiet timeline is an ordinary state, not an uncertainty.
+    expect(empty.attributionUncertain).toBe(false);
   });
 });
