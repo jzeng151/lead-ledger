@@ -122,7 +122,11 @@ export function rescoreAll(icp: IcpConfig): number {
         r.startsWith("unverified claims in rationale") ||
         r.startsWith("unmatched verification claim") ||
         r.startsWith("no rationale") ||
-        r.startsWith("uncited rationale"),
+        r.startsWith("uncited rationale") ||
+        // A holding flag from sync, not something score() can recompute: the
+        // dossier being re-scored belongs to the previous company. It stands
+        // until the replacement run writes a fresh score row.
+        r.startsWith("company domain changed"),
     );
     const reviewReasons = [...s.reviewReasons, ...carried];
 
