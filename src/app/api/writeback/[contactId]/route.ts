@@ -63,6 +63,22 @@ function latestScoreForContact(contactId: string): LatestScore | null {
 export async function POST(req: Request, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId } = await params;
 
+  // This endpoint writes to a third party. A cross-site form post carries no
+  // JSON content type and no same-origin marker, and the lenient body parse
+  // below would otherwise let it through as an ordinary approval, so a page a
+  // rep merely visits could push properties and notes into HubSpot.
+  const site = req.headers.get("sec-fetch-site");
+  if (site && site !== "same-origin") return Response.json({ error: "cross-site request" }, { status: 403 });
+  const origin = req.headers.get("origin");
+  if (origin) {
+    try {
+      if (new URL(origin).host !== new URL(req.url).host)
+        return Response.json({ error: "cross-origin request" }, { status: 403 });
+    } catch {
+      return Response.json({ error: "bad origin" }, { status: 403 });
+    }
+  }
+
   try {
     const body = (await req.json().catch(() => ({}))) as { batch?: boolean; skip?: boolean };
 

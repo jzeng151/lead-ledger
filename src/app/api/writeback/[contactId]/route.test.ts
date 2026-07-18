@@ -80,3 +80,34 @@ describe("concurrent approvals", () => {
     expect((await loser.json()).error).toMatch(/already in progress/);
   });
 });
+
+describe("cross-site protection", () => {
+  it("refuses a request that did not come from this app", async () => {
+    const cross = await POST(
+      new Request("http://test/api/writeback/wbr-c", {
+        method: "POST",
+        headers: { "sec-fetch-site": "cross-site" },
+      }),
+      { params: Promise.resolve({ contactId: "wbr-c" }) },
+    );
+    expect(cross.status).toBe(403);
+
+    const foreignOrigin = await POST(
+      new Request("http://test/api/writeback/wbr-c", { method: "POST", headers: { origin: "https://evil.example" } }),
+      { params: Promise.resolve({ contactId: "wbr-c" }) },
+    );
+    expect(foreignOrigin.status).toBe(403);
+  });
+
+  it("allows a same-origin request through to the normal guards", async () => {
+    const ok = await POST(
+      new Request("http://test/api/writeback/wbr-c", {
+        method: "POST",
+        headers: { origin: "http://test", "sec-fetch-site": "same-origin" },
+      }),
+      { params: Promise.resolve({ contactId: "wbr-c" }) },
+    );
+    // wbr-c has a run in flight from the earlier test, so it reaches that guard.
+    expect(ok.status).toBe(409);
+  });
+});
