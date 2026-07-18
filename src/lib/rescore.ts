@@ -6,7 +6,11 @@ import type { IcpConfig } from "./icp";
 
 const { dossiers, scores, writebacks, runs } = schema;
 
-type WritebackPayload = { properties?: { lead_priority_score?: number; lead_grade?: string }; note?: string };
+type WritebackPayload = {
+  properties?: { lead_priority_score?: number; lead_grade?: string };
+  note?: string;
+  needsReview?: boolean;
+};
 
 /**
  * Keep the staged write-back in step with a re-scored contact.
@@ -44,7 +48,11 @@ function syncWriteback(
   const newlyFlagged = needsReview && !wasNeedsReview;
   if (sameValues && !(wb.status === "written" && newlyFlagged)) return;
 
-  const payload: WritebackPayload = { properties: { lead_priority_score: priority, lead_grade: grade }, note: prior.note ?? "" };
+  const payload: WritebackPayload = {
+    properties: { lead_priority_score: priority, lead_grade: grade },
+    note: prior.note ?? "",
+    needsReview,
+  };
   db.update(writebacks)
     .set({ status: "pending", payload, approvedAt: null, writtenAt: null })
     .where(eq(writebacks.contactId, contactId))

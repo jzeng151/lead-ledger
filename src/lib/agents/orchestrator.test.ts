@@ -413,3 +413,63 @@ describe("a contact purged mid-run", () => {
     expect(db.select().from(schema.writebacks).where(eq(schema.writebacks.contactId, CONTACT)).get()).toBeUndefined();
   });
 });
+
+describe("a re-run that newly flags an already-written contact", () => {
+  it("reopens the row so the hold is visible", async () => {
+    const CONTACT = "c-orch-newflag";
+    db.insert(schema.contacts)
+      .values({ id: CONTACT, name: "New Flag", companyDomain: "northwind.dev", props: {}, syncedAt: new Date() })
+      .onConflictDoNothing()
+      .run();
+    // Written when the verdict was clean. fakeDeps produces the same numbers and
+    // note but trips review (contradiction, identity unverified).
+    const s = score(
+      {
+        icpFit: { firmographic: 0.8, role: 0.3, technographic: 0.3, disqualified: false, conflicts: ["stale funding", "competitor present"] },
+        engagement: { topActions: [], recencyDays: 10 },
+        news: { events: [{ type: "funding", fresh: true }] },
+        verification: { contradictions: ["role mismatch"], unsupported: 1 },
+        identityUnverified: true,
+      },
+      DEFAULT_ICP,
+    );
+    db.insert(schema.writebacks)
+      .values({
+        contactId: CONTACT,
+        status: "written",
+        payload: {
+          properties: { lead_priority_score: s.priority, lead_grade: s.grade },
+          note: "Funded dev-tools shop, but funding claim is unverified.",
+          needsReview: false,
+        },
+        approvedAt: new Date(),
+        writtenAt: new Date(),
+      })
+      .run();
+
+    await runContact("run-orch-newflag", CONTACT, fakeDeps);
+
+    // The queue calls a written contact synced before it looks at needsReview,
+    // so leaving it written would hide the new hold entirely.
+    expect(db.select().from(schema.writebacks).where(eq(schema.writebacks.contactId, CONTACT)).get()?.status).toBe("pending");
+  });
+});
+
+describe("a run for a contact that no longer exists", () => {
+  it("ends before any subagent is invoked", async () => {
+    let calls = 0;
+    const deps: OrchestratorDeps = {
+      runSub: (async () => {
+        calls++;
+        return {};
+      }) as unknown as OrchestratorDeps["runSub"],
+      synthesize: fakeSynthesize,
+    };
+
+    await runContact("run-orch-ghost", "c-does-not-exist", deps);
+
+    // Fanning out would spend model quota on a lead that cannot be scored.
+    expect(calls).toBe(0);
+    expect(db.select().from(schema.runs).where(eq(schema.runs.id, "run-orch-ghost")).get()?.status).toBe("error");
+  });
+});

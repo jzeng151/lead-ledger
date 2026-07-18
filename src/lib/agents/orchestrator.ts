@@ -79,6 +79,18 @@ export async function runContact(
   const bus = makeBus(runId);
 
   const contact = db.select().from(contacts).where(eq(contacts.id, contactId)).get();
+  if (!contact) {
+    // A stale page, or a sync that purged this contact between the click and
+    // here. Fanning out anyway spends model quota on a lead that cannot be
+    // scored and leaves a live trace going nowhere.
+    db.insert(runs)
+      .values({ id: runId, contactId, status: "error", startedAt: new Date(), finishedAt: new Date() })
+      .onConflictDoUpdate({ target: runs.id, set: { status: "error", finishedAt: new Date() } })
+      .run();
+    bus.emit({ agent: "orchestrator", type: "agent_error", payload: { message: `contact ${contactId} no longer exists` } });
+    notifyActivity();
+    return;
+  }
   const icpRow = db.select().from(icpConfig).where(eq(icpConfig.id, "default")).get();
   const icp = (icpRow?.config as IcpConfig | undefined) ?? DEFAULT_ICP;
   const input = JSON.stringify({ contact, domain: contact?.companyDomain, icp });
@@ -255,6 +267,9 @@ export async function runContact(
     const writeback = {
       properties: { lead_priority_score: s.priority, lead_grade: s.grade },
       note: cleanRationale ?? "",
+      // Not sent to HubSpot (applyWriteback builds its own payload); recorded so
+      // a later run can tell whether the review state moved, not just the numbers.
+      needsReview,
     };
     // Leave a claimed row alone. If a rep approved just before this re-run
     // finished, resetting the claim to pending here would let that older write
@@ -264,16 +279,26 @@ export async function runContact(
     // A skip is left alone for the same reason it survives a re-score: the rep
     // decided not to write this contact, and only the rep undoes that.
     const staged = db.select().from(writebacks).where(eq(writebacks.contactId, contactId)).get();
-    const stagedPayload = (staged?.payload ?? {}) as { properties?: Record<string, unknown>; note?: string };
+    const stagedPayload = (staged?.payload ?? {}) as {
+      properties?: Record<string, unknown>;
+      note?: string;
+      needsReview?: boolean;
+    };
 
     // A re-run that lands the same verdict on an already-written contact changes
     // nothing worth approving again. Reopening it would offer the rep a button
     // that posts a second HubSpot note for a score already there.
+    //
+    // The review flag counts as part of the verdict: the queue reports a written
+    // contact as synced before it looks at needsReview, so a re-run that newly
+    // flags the lead has to reopen the row or the hold is invisible. A lead that
+    // was already flagged when the rep approved it anyway stays written.
     const sameAsWritten =
       staged?.status === "written" &&
       stagedPayload.properties?.lead_priority_score === writeback.properties.lead_priority_score &&
       stagedPayload.properties?.lead_grade === writeback.properties.lead_grade &&
-      (stagedPayload.note ?? "") === writeback.note;
+      (stagedPayload.note ?? "") === writeback.note &&
+      !(needsReview && stagedPayload.needsReview === false);
 
     // And only stage from the contact's newest run. A run that outlived the
     // staleness window can finish after a newer one has already been approved;
