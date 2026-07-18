@@ -185,3 +185,16 @@ describe("computeFit: weights that do not sum to 1", () => {
     expect(score({ icpFit: fit(0.8), engagement: {}, verification: noVerif }, inverted).fit).toBe(0);
   });
 });
+
+describe("review band", () => {
+  it("still flags an ambiguous score when the band is saved reversed", () => {
+    // The editor exposes the bounds as two independent fields, so [65, 45] is an
+    // easy mis-edit. Unsorted, it matched no priority and every ambiguous lead
+    // became batch-approvable.
+    const reversed = { ...DEFAULT_ICP, reviewBand: [65, 45] as [number, number] };
+    const r = score({ icpFit: fit(0.55), engagement: {}, verification: noVerif }, reversed);
+    expect(r.priority).toBeGreaterThanOrEqual(45);
+    expect(r.priority).toBeLessThanOrEqual(65);
+    expect(r.reviewReasons.some((x) => x.startsWith("ambiguous score band"))).toBe(true);
+  });
+});

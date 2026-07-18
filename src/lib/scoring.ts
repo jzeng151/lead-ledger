@@ -92,8 +92,12 @@ export function score(d: any, icp: IcpConfig) {
   const unsupported: number = d.verification?.unsupported ?? 0;
   if (unsupported >= 2) reasons.push(`unsupported claims: ${unsupported} claims were not backed by a cited source`);
 
-  if (priority >= icp.reviewBand[0] && priority <= icp.reviewBand[1])
-    reasons.push(`ambiguous score band: priority ${priority} sits in the ${icp.reviewBand[0]}-${icp.reviewBand[1]} review range`);
+  // Sort the band: the editor exposes the bounds as two independent fields, and
+  // a reversed pair silently matches no priority at all, so every ambiguous lead
+  // would skip review and become batch-approvable.
+  const [bandLo, bandHi] = [...icp.reviewBand].sort((a, b) => a - b);
+  if (priority >= bandLo && priority <= bandHi)
+    reasons.push(`ambiguous score band: priority ${priority} sits in the ${bandLo}-${bandHi} review range`);
 
   if (d.identityUnverified)
     reasons.push("identity unverified: the contact could not be matched to a verified person at this domain");
