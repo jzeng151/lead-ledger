@@ -1,6 +1,8 @@
+import { eq } from "drizzle-orm";
+
 import { db, schema } from "@/db";
 
-const { writebacks } = schema;
+const { contacts, writebacks } = schema;
 
 export type WritebackPayload = {
   properties: { lead_priority_score: number; lead_grade: string };
@@ -79,6 +81,12 @@ export async function applyWriteback(
   } else {
     console.log("[writeback dry-run]", contactId, JSON.stringify(payload));
   }
+
+  // A sync can purge this contact while the HubSpot call is out. purgeContact
+  // deletes its write-back row, and recreating one here would leave an orphan
+  // that marks the contact synced if HubSpot ever returns that id again.
+  if (!db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, contactId)).get())
+    return { status: dryRun ? "dry_run" : "written", payload, dryRun };
 
   const now = new Date();
   const status = dryRun ? "dry_run" : "written";
