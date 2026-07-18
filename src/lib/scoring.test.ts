@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { score, computeTiming, classifyTrigger, computeEngagement } from "./scoring";
+import { score, computeTiming, classifyTrigger, computeEngagement, isFreshEvent } from "./scoring";
 import { DEFAULT_ICP } from "./icp";
 
 const fit = (v: number) => ({ firmographic: v, role: v, technographic: v, disqualified: false, conflicts: [] });
@@ -235,5 +235,26 @@ describe("unresolved verification", () => {
       DEFAULT_ICP,
     );
     expect(r.reviewReasons.some((x) => x.startsWith("unresolved verification"))).toBe(false);
+  });
+});
+
+describe("isFreshEvent", () => {
+  it("lets the event date override a stale fresh flag", () => {
+    const now = Date.parse("2026-07-18T00:00:00Z");
+    // A flag is a claim made when the item was retrieved; it does not age, so a
+    // months-old event kept collecting the full urgency weight.
+    expect(isFreshEvent({ date: "2026-03-01", fresh: true }, now)).toBe(false);
+    expect(isFreshEvent({ date: "2026-06-15", fresh: true }, now)).toBe(true);
+    expect(isFreshEvent({ date: "2026-06-15", fresh: false }, now)).toBe(true);
+  });
+
+  it("falls back to the flag when the event carries no usable date", () => {
+    expect(isFreshEvent({ fresh: true })).toBe(true);
+    expect(isFreshEvent({ date: "last spring", fresh: false })).toBe(false);
+  });
+
+  it("discounts an aged trigger in the timing sum", () => {
+    const aged = computeTiming({ events: [{ type: "funding", date: "2025-01-01", fresh: true }] }, DEFAULT_ICP);
+    expect(aged).toBeCloseTo(0.32); // 0.8 * staleFactor, not the full 0.8
   });
 });

@@ -54,6 +54,22 @@ export function classifyTrigger(type: string | undefined): string {
 // Signed timing in [-1, 1] from dated trigger events. Fresh events count fully;
 // stale ones scale by staleFactor. Weights may be negative (distress signals),
 // so a cold lead with only bad news lands below zero.
+// How recent a dated trigger has to be to count as current.
+const FRESH_DAYS = 90;
+
+/**
+ * Is this trigger current? The event's own date decides when it has one, since a
+ * `fresh` flag is a claim made when the item was retrieved and does not age: a
+ * dossier written months ago, or a fixture with a hardcoded flag, would keep
+ * collecting the full urgency weight for news that is long past. The flag is the
+ * fallback for an undated event.
+ */
+export function isFreshEvent(e: any, now = Date.now()): boolean {
+  const t = Date.parse(e?.date ?? "");
+  if (Number.isNaN(t)) return e?.fresh === true;
+  return now - t <= FRESH_DAYS * 24 * 60 * 60 * 1000;
+}
+
 export function computeTiming(news: any, icp: IcpConfig): number {
   const events: any[] = news?.events ?? [];
   const weights = icp.urgency.weights;
@@ -61,7 +77,7 @@ export function computeTiming(news: any, icp: IcpConfig): number {
   for (const e of events) {
     const key = classifyTrigger(e?.type);
     const w = key in weights ? weights[key] : weights.default;
-    sum += w * (e?.fresh === true ? 1 : icp.urgency.staleFactor);
+    sum += w * (isFreshEvent(e) ? 1 : icp.urgency.staleFactor);
   }
   return Math.max(-1, Math.min(1, sum));
 }

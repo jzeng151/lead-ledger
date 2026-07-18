@@ -1,7 +1,7 @@
 {
-  "company": { "industry": "software", "headcount": 65, "headcountGrowth90d": 0.28, "revenueBand": "$5M-$20M", "hq": "Seattle", "ownership": "private", "fundingTotal": "$9M", "latestRound": "Seed", "latestRoundDate": "2026-01-30" },
+  "company": { "industry": "software", "headcount": 65, "headcountGrowth90d": 0.28, "revenueBand": "$5M-$20M", "hq": "Seattle", "ownership": "private", "fundingTotal": "$9M", "latestRound": "Seed", "latestRoundDate": "2026-06-02" },
   "person": { "title": "Site Reliability Engineer", "seniority": "IC", "department": "Engineering", "tenureMonths": 22, "jobChange": false, "buyingRole": "champion", "emailVerified": true },
   "tech": { "technologies": ["React","Python","AWS","Terraform"], "competitorPresent": false, "competitorEvidence": null, "githubOrg": "fathom-metrics", "statusPage": true, "recentIncident": true },
-  "news": [{ "date": "2026-01-30", "type": "funding", "summary": "Seed $9M", "source": "https://example.com/fathom-seed", "talkingPoint": "Fresh seed round - good time to lock in observability early", "fresh": true }],
+  "news": [{ "date": "2026-06-02", "type": "funding", "summary": "Seed $9M", "source": "https://example.com/fathom-seed", "talkingPoint": "Fresh seed round - good time to lock in observability early", "fresh": true }],
   "engagement": { "topActions": ["content_download","email_open"], "recencyDays": 34, "rawSignals": [{ "type": "content_download", "count": 1 }, { "type": "email_open", "count": 2 }], "attributionUncertain": false }
 }
