@@ -4,7 +4,8 @@ export type GithubOrg = {
   login: string | null;
   url: string | null;
   publicRepos: number | null;
-  exists: boolean;
+  /** null when nothing confirmed the org: an echo is a guess, not a finding. */
+  exists: boolean | null;
   source: string;
 };
 
@@ -36,13 +37,17 @@ export async function githubOrgLookup(org: string): Promise<GithubOrg> {
     query: org,
     mode: "web",
     location: org ? `github.com/${org} (echoed, no live lookup)` : "github (no org)",
-    outcome: org ? "found" : "empty",
+    outcome: "empty",
+    detail: org ? "echoed input, existence unconfirmed" : undefined,
   });
+  // Nothing was looked up here, so existence is unknown. Reporting true would
+  // hand the tech agent a fabricated positive for any org name it guessed from
+  // the domain, inflating the technographic axis.
   return {
     login: org || null,
     url: org ? `https://github.com/${org}` : null,
     publicRepos: null,
-    exists: Boolean(org),
+    exists: null,
     source: "github:echo",
   };
 }

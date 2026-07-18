@@ -81,11 +81,13 @@ describe("enrichment adapters read fixtures on the mock path (no keys)", () => {
     expect(tech.technologies).toContain("Next.js");
     expect(tech.competitorPresent.value).toBe(false);
   });
-  it("githubOrgLookup -> confirms fixture org", async () => {
+  it("githubOrgLookup -> echoes the org without claiming it exists", async () => {
     const org = loadFixture(DOMAIN).tech.githubOrg;
     const res = await githubOrgLookup(org);
     expect(res.login).toBe("northwind");
-    expect(res.exists).toBe(true);
+    // Nothing was looked up on the mock path, so existence is unknown. Reporting
+    // true here fabricated a positive technographic signal for any guessed org.
+    expect(res.exists).toBeNull();
   });
   it("hubspotGetContact -> seeded contact row", async () => {
     expect((await hubspotGetContact("c-northwind")).name).toBe("Priya Nair");
