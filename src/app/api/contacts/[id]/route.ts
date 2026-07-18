@@ -40,10 +40,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   let score: Omit<(typeof scoreRows)[number], "startedAt" | "runId"> | null = null;
   let latestStartedAt = -Infinity;
+  let latestScoredRunId = "";
   for (const s of scoreRows) {
     const t = s.startedAt ? s.startedAt.getTime() : 0;
-    if (t >= latestStartedAt) {
+    // startedAt is second-resolution; runId carries the millisecond stamp, so it
+    // breaks a tie between a fast re-run and the score it replaces.
+    if (t > latestStartedAt || (t === latestStartedAt && s.runId > latestScoredRunId)) {
       latestStartedAt = t;
+      latestScoredRunId = s.runId;
       const { startedAt: _startedAt, runId: _runId, ...rest } = s;
       score = rest;
     }

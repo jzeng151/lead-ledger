@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, lt, ne, or } from "drizzle-orm";
 
 import { db, schema } from "@/db";
 import { applyWriteback } from "@/lib/hubspot/writeback";
@@ -8,6 +8,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const { scores, runs, writebacks } = schema;
+
+// How long a claimed write stays claimed before another request may take it over.
+const WRITE_CLAIM_MS = 2 * 60 * 1000;
 
 export async function POST(req: Request, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId } = await params;
@@ -34,6 +37,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
     // matching the list/detail routes' "latest" rule.
     const scoreRows = db
       .select({
+        runId: scores.runId,
         priority: scores.priority,
         grade: scores.grade,
         rationale: scores.rationale,
@@ -50,11 +54,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
       | { priority: number; grade: string; rationale: string | null; nextStep: string | null; needsReview: boolean }
       | null = null;
     let latestStartedAt = -Infinity;
+    let latestRunId = "";
     for (const s of scoreRows) {
       const t = s.startedAt ? s.startedAt.getTime() : 0;
-      if (t >= latestStartedAt) {
+      // startedAt is stored at second resolution, so a fast re-run can tie with
+      // the score it replaces and leave the winner down to row order. runId
+      // carries the millisecond stamp, which breaks the tie the right way; without
+      // it an approval right after a re-run could send the previous verdict.
+      if (t > latestStartedAt || (t === latestStartedAt && s.runId > latestRunId)) {
         latestStartedAt = t;
-        const { startedAt: _startedAt, ...rest } = s;
+        latestRunId = s.runId;
+        const { startedAt: _startedAt, runId: _runId, ...rest } = s;
         score = rest;
       }
     }
@@ -93,8 +103,39 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
       return Response.json({ status: "written", payload: priorPayload, dryRun: false, alreadyWritten: true });
     }
 
-    const r = await applyWriteback(contactId, score);
-    return Response.json({ ...r });
+    // Claim the row before the HubSpot call. Two approvals for the same contact
+    // (two tabs, a double submit) both read this row as pending and both reach
+    // the write, posting duplicate timeline notes for one score. The conditional
+    // update is the claim: only one request can win it. A claim older than the
+    // window is reclaimable, so a process that dies mid-write does not leave the
+    // contact permanently unapprovable.
+    if (prior) {
+      const reclaimable = new Date(Date.now() - WRITE_CLAIM_MS);
+      const claimed = db
+        .update(writebacks)
+        .set({ status: "writing", approvedAt: new Date() })
+        .where(
+          and(
+            eq(writebacks.contactId, contactId),
+            or(ne(writebacks.status, "writing"), lt(writebacks.approvedAt, reclaimable)),
+          ),
+        )
+        .run();
+      if (claimed.changes === 0) return Response.json({ error: "a write is already in progress" }, { status: 409 });
+    }
+
+    try {
+      const r = await applyWriteback(contactId, score);
+      return Response.json({ ...r });
+    } catch (e) {
+      // Put the row back the way it was so a failed write does not strand it.
+      if (prior)
+        db.update(writebacks)
+          .set({ status: prior.status, approvedAt: prior.approvedAt })
+          .where(eq(writebacks.contactId, contactId))
+          .run();
+      throw e;
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return Response.json({ error: message }, { status: 500 });
