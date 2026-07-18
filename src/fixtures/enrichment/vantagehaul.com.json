@@ -1,0 +1,7 @@
+{
+  "company": { "industry": "freight brokerage", "headcount": 25, "headcountGrowth90d": 0.0, "revenueBand": "$5M-$10M", "hq": "Toledo", "ownership": "family-owned", "fundingTotal": null, "latestRound": null, "latestRoundDate": null },
+  "person": { "title": null, "seniority": null, "department": null, "tenureMonths": null, "jobChange": null, "buyingRole": "none", "emailVerified": false },
+  "tech": { "technologies": ["WordPress", "jQuery"], "competitorPresent": false, "competitorEvidence": null, "githubOrg": null, "statusPage": false, "recentIncident": false },
+  "news": [],
+  "engagement": { "topActions": [], "recencyDays": 400, "rawSignals": [], "attributionUncertain": false }
+}
