@@ -28,6 +28,10 @@ describe("isPublicHttpUrl", () => {
       "http://[::ffff:127.0.0.1]/", // IPv4-mapped loopback
       "http://[::ffff:7f00:1]/", // same, hex spelling
       "http://[::ffff:10.0.0.5]/",
+      "http://100.64.0.1/", // carrier-grade NAT
+      "http://198.18.0.1/", // benchmarking range
+      "http://224.0.0.1/", // multicast
+      "http://255.255.255.255/",
       "http://db.internal/",
       "http://printer.local/",
     ])
