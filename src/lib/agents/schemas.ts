@@ -89,10 +89,15 @@ export const VerificationFindings = z.object({
 
 // 7. ICP-Fit. The three axis scores feed the deterministic scorer, so they
 // default to a neutral 0.5 if a model omits them rather than crashing the run.
+// They are bounded to 0-1 because computeFit multiplies them directly: a model
+// answering on a 0-100 scale would otherwise validate and persist an impossible
+// fit and grade. Out of range fails the run, which is visible, rather than
+// silently promoting the lead. The bounds also reach the model through the tool
+// JSON schema, so the mistake is unlikely in the first place.
 export const IcpFitFindings = z.object({
-  firmographic: z.number().optional().default(0.5),
-  role: z.number().optional().default(0.5),
-  technographic: z.number().optional().default(0.5),
+  firmographic: z.number().min(0).max(1).optional().default(0.5),
+  role: z.number().min(0).max(1).optional().default(0.5),
+  technographic: z.number().min(0).max(1).optional().default(0.5),
   disqualified: z.boolean().optional().default(false),
   dimensions: z
     .array(

@@ -1,8 +1,18 @@
 import type { IcpConfig } from "./icp";
 
+// Axis values are validated at the schema boundary, but a re-score replays
+// dossiers persisted before that guard existed, and a dossier with no icpFit at
+// all yields undefined here. Coerce to a usable 0-1 so a stored bad value can
+// never produce a fit outside the scale.
+const axis = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
+};
+
 export function computeFit(icpFit: any, icp: IcpConfig) {
   const w = icp.weights;
-  const raw = icpFit.firmographic * w.firmographic + icpFit.role * w.role + icpFit.technographic * w.technographic;
+  const raw =
+    axis(icpFit?.firmographic) * w.firmographic + axis(icpFit?.role) * w.role + axis(icpFit?.technographic) * w.technographic;
   const disqualified = icpFit.disqualified === true;
   return Math.round((disqualified ? Math.min(raw, 0.1) : raw) * 100);
 }

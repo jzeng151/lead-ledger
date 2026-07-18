@@ -151,3 +151,23 @@ describe("computeEngagement: decay dial is clamped", () => {
     expect(computeEngagement(e, { ...DEFAULT_ICP, engagementDecayPerMonth: -2 })).toBe(30);
   });
 });
+
+describe("computeFit: axis values are bounded", () => {
+  it("clamps an out-of-scale axis from a legacy dossier instead of scoring past 100", () => {
+    // A 0-100 answer where the scorer expects 0-1. The schema now rejects this on
+    // a live run, but a re-score replays dossiers persisted before that guard.
+    const r = score(
+      { icpFit: { firmographic: 80, role: 70, technographic: 60, disqualified: false, conflicts: [] }, engagement: {}, verification: noVerif },
+      DEFAULT_ICP,
+    );
+    expect(r.fit).toBe(100);
+    expect(r.priority).toBeLessThanOrEqual(100);
+  });
+
+  it("treats a missing icpFit as zero fit rather than NaN", () => {
+    const r = score({ icpFit: {}, engagement: {}, verification: noVerif }, DEFAULT_ICP);
+    expect(r.fit).toBe(0);
+    expect(r.grade).toBe("F");
+    expect(Number.isNaN(r.priority)).toBe(false);
+  });
+});
