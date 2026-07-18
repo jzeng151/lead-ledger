@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { db, schema } from "@/db";
 import { DEFAULT_ICP, type IcpConfig } from "@/lib/icp";
+import { rescoreAll } from "@/lib/rescore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +31,14 @@ export async function PUT(req: Request) {
     .values({ id: "default", config: merged })
     .onConflictDoUpdate({ target: icpConfig.id, set: { config: merged } })
     .run();
+
+  // Re-score every stored run against the new dials, otherwise the queue keeps
+  // serving verdicts computed under the old weights until each contact is
+  // manually re-run. This replays the deterministic scorer over persisted
+  // dossiers, so it costs no agent calls.
+  // Response shape stays the bare config: the editor stores whatever it gets
+  // back, so an extra field here would be persisted into the config on next save.
+  rescoreAll(merged);
 
   return Response.json(merged);
 }
