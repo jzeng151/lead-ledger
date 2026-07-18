@@ -25,13 +25,15 @@ export function computeFit(icpFit: any, icp: IcpConfig) {
 export function computeEngagement(e: any, icp: IcpConfig) {
   const weightOf = (a: string) => (a === "demo_request" ? 30 : a === "pricing_page_view" ? 20 : 8);
   const base = Math.min(100, (e?.topActions ?? []).reduce((s: number, a: string) => s + weightOf(a), 0));
-  const months = (e?.recencyDays ?? 999) / 30;
+  // A negative recencyDays (a future timestamp, or date math gone wrong upstream)
+  // would make the decay multiplier greater than 1 and push engagement past 100.
+  const months = Math.max(0, e?.recencyDays ?? 999) / 30;
   // Clamp the dial: the ICP editor accepts any number, and a decay above 1 makes
   // the base negative, which Math.pow turns into NaN for fractional months. That
   // NaN would then flow through engagement into priority.
   const perMonth = Math.min(1, Math.max(0, icp.engagementDecayPerMonth));
   const decay = Math.pow(1 - perMonth, months);
-  return Math.round(base * decay);
+  return Math.max(0, Math.min(100, Math.round(base * decay)));
 }
 
 // Map the News subagent's free-form event `type` to a canonical trigger key that
@@ -78,8 +80,12 @@ export function score(d: any, icp: IcpConfig) {
 
   // Grade reflects fit only (US academic scale), so a great-fit cold lead is still
   // an A and lack of engagement never drags the letter down.
+  // Cutoffs are four independent editor fields, so enforce the ordering the
+  // first-match chain assumes. Saved as A:50 B:80, a fit of 60 would otherwise
+  // match A and ship an inflated letter to the queue and to HubSpot.
   const g = icp.grades;
-  const grade = fit >= g.A ? "A" : fit >= g.B ? "B" : fit >= g.C ? "C" : fit >= g.D ? "D" : "F";
+  const [dCut, cCut, bCut, aCut] = [g.A, g.B, g.C, g.D].sort((x, y) => x - y);
+  const grade = fit >= aCut ? "A" : fit >= bCut ? "B" : fit >= cCut ? "C" : fit >= dCut ? "D" : "F";
 
   // Review reasons carry their specifics ("label: detail"), so the report shows
   // WHAT was wrong rather than a bare category the rep has to go digging for.

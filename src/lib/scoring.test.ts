@@ -198,3 +198,22 @@ describe("review band", () => {
     expect(r.reviewReasons.some((x) => x.startsWith("ambiguous score band"))).toBe(true);
   });
 });
+
+describe("grade cutoffs and recency guards", () => {
+  it("orders cutoffs saved out of sequence instead of inflating the letter", () => {
+    // A:50 B:80 saved by mis-editing independent fields. Unsorted, the
+    // first-match chain graded a 60-fit contact an A. Sorted, the four cutoffs
+    // read as D:50 C:60 B:70 A:80, so a 60 is a C.
+    const swapped = { ...DEFAULT_ICP, grades: { A: 50, B: 80, C: 70, D: 60 } };
+    expect(score({ icpFit: fit(0.6), engagement: {}, verification: noVerif }, swapped).grade).toBe("C");
+    expect(score({ icpFit: fit(0.85), engagement: {}, verification: noVerif }, swapped).grade).toBe("A");
+  });
+
+  it("does not let a negative recency push engagement past 100", () => {
+    // A future timestamp upstream made the decay multiplier exceed 1.
+    const e = { topActions: ["demo_request", "pricing_page_view"], recencyDays: -90 };
+    const v = computeEngagement(e, DEFAULT_ICP);
+    expect(v).toBeLessThanOrEqual(100);
+    expect(v).toBe(50); // treated as same-day, no decay applied
+  });
+});
