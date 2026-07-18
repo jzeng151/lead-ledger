@@ -22,7 +22,9 @@ describe("detectTechStack live scan", () => {
     const t = await detectTechStack("northwind.dev");
 
     expect(t.competitorPresent.value).toBe(true);
-    expect(t.competitorEvidence).toContain("Datadog");
+    // Field-shaped so the agent can forward it into submit_findings as-is.
+    expect(t.competitorEvidence?.value).toContain("Datadog");
+    expect(t.competitorEvidence?.source).toBe("https://northwind.dev");
     expect(t.technologies).toContain("Next.js");
     expect(t.technologies).toContain("Datadog");
   });

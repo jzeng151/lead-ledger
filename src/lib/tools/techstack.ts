@@ -4,7 +4,10 @@ import { fetchUrl } from "./fetchUrl";
 export type TechStack = {
   technologies: string[];
   competitorPresent: FieldVal<boolean>;
-  competitorEvidence: string | null;
+  // Field-shaped, matching TechFindings: the agent forwards this straight into
+  // submit_findings, and a bare string there fails schema validation and aborts
+  // the run. It also keeps the evidence citeable.
+  competitorEvidence: FieldVal<string> | null;
   complementSignals: string[];
   notes: string | null;
 };
@@ -38,7 +41,7 @@ function mockTech(domain: string): TechStack {
   return {
     technologies: Array.isArray(t.technologies) ? t.technologies : [],
     competitorPresent: { value: t.competitorPresent ?? null, confidence: 0.7, source: src },
-    competitorEvidence: t.competitorEvidence ?? null,
+    competitorEvidence: t.competitorEvidence ? { value: t.competitorEvidence, confidence: 0.7, source: src } : null,
     complementSignals,
     notes: t.recentIncident ? "Recent incident reported on public status page." : null,
   };
@@ -64,7 +67,9 @@ export async function detectTechStack(domain: string): Promise<TechStack> {
               confidence: competitor ? 0.8 : 0.3,
               source: `https://${domain}`,
             },
-            competitorEvidence: competitor ? `${competitor[1]} script served on https://${domain}` : null,
+            competitorEvidence: competitor
+              ? { value: `${competitor[1]} script served on https://${domain}`, confidence: 0.8, source: `https://${domain}` }
+              : null,
             complementSignals: [],
             notes: null,
           };
