@@ -9,7 +9,15 @@ export const dynamic = "force-dynamic";
 const { contacts, scores, runs } = schema;
 
 export async function POST() {
-  const { synced, source } = await syncContacts();
+  // Surface a HubSpot failure (expired token, rate limit) as a JSON error the
+  // dashboard can show, instead of an opaque 500 the client reads as success.
+  let synced: number;
+  let source: "hubspot" | "fixtures";
+  try {
+    ({ synced, source } = await syncContacts());
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
+  }
 
   // Auto-run on sync: kick off a scoring run for every contact that has not been
   // scored yet. A `scores` row exists only once a run reaches "scored", so its

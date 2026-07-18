@@ -24,6 +24,7 @@ export default function Home() {
   const [activeRuns, setActiveRuns] = useState(0);
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("All");
 
   async function loadContacts() {
@@ -71,11 +72,22 @@ export default function Home() {
 
   async function handleSync() {
     setSyncing(true);
+    setSyncError(null);
     try {
-      await fetch("/api/sync", { method: "POST" });
+      // fetch resolves on a 4xx/5xx, so an expired token or a rate limit would
+      // otherwise clear the spinner and reload the unchanged queue, which reads
+      // as a successful but empty import.
+      const res = await fetch("/api/sync", { method: "POST" });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => null);
+        setSyncError(detail?.error ? `Sync failed: ${detail.error}` : `Sync failed (${res.status})`);
+        return;
+      }
       await loadContacts();
       // The sync returns after the pull; scoring runs fire in the background. The
       // activity poll above keeps the queue and the button's scoring state current.
+    } catch (e) {
+      setSyncError(e instanceof Error ? e.message : String(e));
     } finally {
       setSyncing(false);
     }
@@ -159,6 +171,7 @@ export default function Home() {
         </div>
       </header>
 
+      {syncError ? <p className="mb-4 text-sm text-[var(--tone-rose-fg)]">{syncError}</p> : null}
       {approveError ? <p className="mb-4 text-sm text-[var(--tone-rose-fg)]">{approveError}</p> : null}
 
       <div className="card overflow-hidden">
