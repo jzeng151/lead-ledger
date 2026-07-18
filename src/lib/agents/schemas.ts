@@ -41,6 +41,9 @@ export const TechFindings = z.object({
   technologies: z.array(z.string()).default([]),
   competitorPresent: field(z.boolean()).optional(),
   competitorEvidence: field(z.string()).optional(),
+  // Whether the domain actually served a page over HTTPS. A field() so the result
+  // is citeable and reaches the report rather than dying in a free-text note.
+  httpsLive: field(z.boolean()).optional(),
   complementSignals: z.array(z.string()).default([]),
   notes: z.string().optional().default(""),
 });

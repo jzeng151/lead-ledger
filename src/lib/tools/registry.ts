@@ -104,7 +104,14 @@ export function submitTool(schema: z.ZodTypeAny) {
 export const TOOLSETS: Record<string, (keyof typeof TOOLS)[]> = {
   company: ["pdl_company_enrich", "apollo_org_enrich"],
   contact: ["pdl_person_enrich", "apollo_person_match", "hunter_verify_email", "hubspot_get_contact"],
-  tech: ["fetch_url", "detect_tech_stack", "github_org_lookup"],
+  // fetch_url is the only tool that reaches a third-party site directly, so it is
+  // gated like the other live tools: in fixture/demo mode the fictional domains
+  // either do not resolve or belong to unrelated real owners, and fingerprinting
+  // those would both pollute the demo and hit strangers' servers.
+  tech:
+    process.env.LEAD_LEDGER_LIVE_TOOLS === "1"
+      ? ["fetch_url", "detect_tech_stack", "github_org_lookup"]
+      : ["detect_tech_stack", "github_org_lookup"],
   news: ["gdelt_news_search", "web_search"],
   engagement: ["hubspot_get_contact", "hubspot_get_engagements"],
   // Verification may re-fetch a cited source only when live tools are enabled.

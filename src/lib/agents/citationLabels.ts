@@ -24,6 +24,7 @@ const FIELD_LABELS: Record<string, CitationMeta> = {
   // Tech (TechFindings)
   competitorPresent: { label: "Competitor presence", agent: "Tech" },
   competitorEvidence: { label: "Competitor evidence", agent: "Tech" },
+  httpsLive: { label: "HTTPS reachable", agent: "Tech" },
 };
 
 /**
