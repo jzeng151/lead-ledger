@@ -11,9 +11,13 @@ const axis = (v: unknown): number => {
 
 export function computeFit(icpFit: any, icp: IcpConfig) {
   const w = icp.weights;
-  const raw =
-    axis(icpFit?.firmographic) * w.firmographic + axis(icpFit?.role) * w.role + axis(icpFit?.technographic) * w.technographic;
-  const disqualified = icpFit.disqualified === true;
+  // Weights come from the ICP editor and are not required to sum to 1, so the
+  // weighted sum is clamped too: fit is documented as 0-100 and feeds the grade
+  // bands, and a weight set summing to 2 would otherwise persist a fit of 200.
+  const raw = axis(
+    axis(icpFit?.firmographic) * w.firmographic + axis(icpFit?.role) * w.role + axis(icpFit?.technographic) * w.technographic,
+  );
+  const disqualified = icpFit?.disqualified === true;
   return Math.round((disqualified ? Math.min(raw, 0.1) : raw) * 100);
 }
 

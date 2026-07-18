@@ -171,3 +171,17 @@ describe("computeFit: axis values are bounded", () => {
     expect(Number.isNaN(r.priority)).toBe(false);
   });
 });
+
+describe("computeFit: weights that do not sum to 1", () => {
+  it("keeps fit on the 0-100 scale", () => {
+    const heavy = { ...DEFAULT_ICP, weights: { firmographic: 1, role: 1, technographic: 1 } };
+    const r = score({ icpFit: fit(0.9), engagement: {}, verification: noVerif }, heavy);
+    expect(r.fit).toBe(100); // 0.9*3 would otherwise persist as 270
+    expect(r.grade).toBe("A");
+  });
+
+  it("does not go negative on inverted weights", () => {
+    const inverted = { ...DEFAULT_ICP, weights: { firmographic: -1, role: 0.3, technographic: 0.3 } };
+    expect(score({ icpFit: fit(0.8), engagement: {}, verification: noVerif }, inverted).fit).toBe(0);
+  });
+});
