@@ -26,7 +26,12 @@ function syncWriteback(
   wasNeedsReview: boolean,
 ) {
   const wb = db.select().from(writebacks).where(eq(writebacks.contactId, contactId)).get();
-  if (!wb || wb.status === "skipped") return;
+  // "writing" means a HubSpot call is in flight with the pre-save payload.
+  // Replacing the row here would be undone the moment that call finishes and
+  // upserts "written", leaving the queue claiming a re-scored contact is synced
+  // while HubSpot holds the old numbers. The write-back route reconciles the row
+  // once its call returns.
+  if (!wb || wb.status === "skipped" || wb.status === "writing") return;
 
   const prior = (wb.payload ?? {}) as WritebackPayload;
   const sameValues = prior.properties?.lead_priority_score === priority && prior.properties?.lead_grade === grade;

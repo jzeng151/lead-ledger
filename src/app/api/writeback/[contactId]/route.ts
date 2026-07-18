@@ -126,6 +126,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ contact
 
     try {
       const r = await applyWriteback(contactId, score);
+
+      // A settings save can land while the HubSpot call is in flight. rescoreAll
+      // leaves a claimed row alone, so reconcile here: if the score moved while
+      // we were writing, HubSpot now holds the old numbers, and the row must go
+      // back to pending rather than claim the contact is synced.
+      const current = db.select().from(scores).where(eq(scores.runId, latestRunId)).get();
+      if (current && (current.priority !== score.priority || current.grade !== score.grade)) {
+        db.update(writebacks)
+          .set({ status: "pending", approvedAt: null, writtenAt: null })
+          .where(eq(writebacks.contactId, contactId))
+          .run();
+        return Response.json({ ...r, restaged: true });
+      }
       return Response.json({ ...r });
     } catch (e) {
       // Put the row back the way it was so a failed write does not strand it.
