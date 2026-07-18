@@ -16,8 +16,17 @@ function mapSerp(data: any): NewsItem[] {
   }));
 }
 
-// SerpAPI when a key is present; otherwise the news fixture directly (no live call).
-export async function webSearch(query: string): Promise<{ events: NewsItem[] }> {
+// Pull a domain-like token out of a free-form query so the demo fixture resolves
+// even when the model passes a natural-language search string rather than the
+// bare domain. Falls back to the query itself when no domain is present.
+function domainFromQuery(q: string): string {
+  const m = q.match(/\b([a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.[a-z]{2,})\b/i);
+  return m ? m[1] : q;
+}
+
+// SerpAPI when a key is present; otherwise the news fixture, keyed by the company
+// domain (passed explicitly, else extracted from the query).
+export async function webSearch(query: string, domain?: string): Promise<{ events: NewsItem[] }> {
   const key = process.env.SERPAPI_KEY;
   if (key) {
     try {
@@ -32,5 +41,5 @@ export async function webSearch(query: string): Promise<{ events: NewsItem[] }> 
       // fall through to fixture
     }
   }
-  return { events: (loadFixture(query).news ?? []) as NewsItem[] };
+  return { events: (loadFixture(domain ?? domainFromQuery(query)).news ?? []) as NewsItem[] };
 }

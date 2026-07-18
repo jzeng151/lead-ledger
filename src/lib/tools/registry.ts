@@ -53,9 +53,10 @@ export const TOOLS = {
   }),
   web_search: betaZodTool({
     name: "web_search",
-    description: "Open-web search. Pass the company domain to get results in demo mode.",
-    inputSchema: z.object({ query: z.string() }),
-    run: ({ query }) => withTool("web_search", query, async () => JSON.stringify(await webSearch(query))),
+    description: "Open-web news search. Pass the search `query` and the company `domain` (the domain drives demo results).",
+    inputSchema: z.object({ query: z.string(), domain: z.string().optional() }),
+    run: ({ query, domain }) =>
+      withTool("web_search", domain ?? query, async () => JSON.stringify(await webSearch(query, domain))),
   }),
   fetch_url: betaZodTool({
     name: "fetch_url",
