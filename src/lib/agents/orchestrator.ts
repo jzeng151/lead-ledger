@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { db, schema } from "../../db";
-import { makeBus, dropBus, getBus } from "../runStore";
+import { makeBus, dropBus, getBus, notifyActivity } from "../runStore";
 import { score } from "../scoring";
 import { checkCitations } from "../citation";
 import { DEFAULT_ICP, type IcpConfig } from "../icp";
@@ -90,6 +90,7 @@ export async function runContact(
     .onConflictDoUpdate({ target: runs.id, set: { status: "running", startedAt: new Date(), finishedAt: null } })
     .run();
   bus.emit({ agent: "orchestrator", type: "run_started", payload: { contactId } });
+  notifyActivity(); // dashboard: a run is now in flight
 
   try {
     bus.emit({ agent: "orchestrator", type: "plan_ready", payload: { agents: FANOUT.map((a) => a.key) } });
@@ -185,11 +186,13 @@ export async function runContact(
     db.update(runs).set({ status: "scored", finishedAt: new Date() }).where(eq(runs.id, runId)).run();
 
     bus.emit({ agent: "orchestrator", type: "run_completed", payload: { priority: s.priority } });
+    notifyActivity(); // dashboard: this run scored, refresh the queue
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const stack = err instanceof Error ? err.stack : undefined;
     bus.emit({ agent: "orchestrator", type: "agent_error", payload: { message, stack } });
     db.update(runs).set({ status: "error" }).where(eq(runs.id, runId)).run();
+    notifyActivity(); // dashboard: this run failed, clear its in-flight state
   } finally {
     // Keep the bus around briefly for late SSE subscribers, then reclaim it.
     // Only drop the bus this run created: a re-run may have installed a newer bus

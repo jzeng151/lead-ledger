@@ -19,6 +19,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  // Count of in-flight scoring runs (from any trigger). Drives the dashboard
+  // auto-refresh and the Sync button's disabled + progress state.
+  const [activeRuns, setActiveRuns] = useState(0);
   const [approving, setApproving] = useState(false);
   const [tab, setTab] = useState<Tab>("All");
 
@@ -39,11 +42,39 @@ export default function Home() {
     loadContacts();
   }, []);
 
+  // Fully reactive: subscribe to the activity SSE stream. The server pushes the
+  // in-flight run count on connect and on every run lifecycle transition (a sync
+  // here, or a "Run" from a contact page); each push updates the button state and
+  // refreshes the queue, so scores appear the moment a review finishes. No polling.
+  useEffect(() => {
+    let alive = true;
+    const es = new EventSource("/api/activity/stream");
+    es.onmessage = async (m) => {
+      try {
+        const { running } = JSON.parse(m.data) as { running: number };
+        if (!alive) return;
+        setActiveRuns(running);
+        const c = await fetch("/api/contacts");
+        if (alive && c.ok) setRows(await c.json());
+      } catch {
+        /* ignore a malformed frame */
+      }
+    };
+    // A dropped stream auto-reconnects (EventSource default), which re-sends the
+    // snapshot, so there is nothing to handle on error.
+    return () => {
+      alive = false;
+      es.close();
+    };
+  }, []);
+
   async function handleSync() {
     setSyncing(true);
     try {
       await fetch("/api/sync", { method: "POST" });
       await loadContacts();
+      // The sync returns after the pull; scoring runs fire in the background. The
+      // activity poll above keeps the queue and the button's scoring state current.
     } finally {
       setSyncing(false);
     }
@@ -76,6 +107,7 @@ export default function Home() {
     [rows],
   );
   const visible = useMemo(() => rows.filter((r) => tabMatches(tab, r)), [rows, tab]);
+  const unscored = useMemo(() => rows.filter((r) => r.status === "new").length, [rows]);
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
@@ -93,10 +125,14 @@ export default function Home() {
               "Approve scored"
             )}
           </button>
-          <button onClick={handleSync} disabled={syncing} className="btn btn-primary">
+          <button onClick={handleSync} disabled={syncing || activeRuns > 0} className="btn btn-primary">
             {syncing ? (
               <>
                 <Spinner /> Syncing...
+              </>
+            ) : activeRuns > 0 ? (
+              <>
+                <Spinner /> Scoring{unscored > 0 ? ` ${unscored} left` : ""}...
               </>
             ) : (
               "Sync contacts"
