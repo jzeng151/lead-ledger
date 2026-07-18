@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { RunBus, type RunEvent } from "./events";
@@ -55,5 +55,32 @@ describe("runStore", () => {
     expect(getBus(id)).toBe(bus);
     expect(dropBus(id)).toBe(true);
     expect(getBus(id)).toBeUndefined();
+  });
+});
+
+describe("token heartbeat", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("keeps tokens out of the table but leaves a marker once past the window", () => {
+    vi.useFakeTimers();
+    const bus = new RunBus("hb-run");
+    const rows = () => db.select().from(schema.runEvents).where(eq(schema.runEvents.runId, "hb-run")).all();
+
+    bus.emit({ agent: "synthesis", type: "agent_started", payload: {} });
+    for (let i = 0; i < 500; i++) bus.emit({ agent: "synthesis", type: "agent_token", payload: { text: "x" } });
+
+    // A burst of tokens inside the window persists nothing: that is the point of
+    // skipping them.
+    expect(rows()).toHaveLength(1);
+
+    // A model that streams for minutes with no other event used to leave the run
+    // looking idle, so activeRuns() aged it out while it was still working.
+    vi.advanceTimersByTime(61_000);
+    bus.emit({ agent: "synthesis", type: "agent_token", payload: { text: "x" } });
+
+    const after = rows();
+    expect(after).toHaveLength(2);
+    expect(after[1].type).toBe("agent_progress");
+    expect(after.every((r) => r.type !== "agent_token")).toBe(true);
   });
 });
