@@ -8,6 +8,7 @@ import { buildPayload } from "../hubspot/writeback";
 import { DEFAULT_ICP, type IcpConfig } from "../icp";
 import { runSubagent, type EventSink } from "./runSubagent";
 import { FANOUT, VERIFICATION, ICPFIT, MODELS, EFFORT, SYSTEM_PROMPTS } from "./config";
+import { TOOLSETS } from "../tools/registry";
 import { SynthesisOutput } from "./schemas";
 
 const { contacts, runs, scores, dossiers, writebacks, icpConfig } = schema;
@@ -157,6 +158,10 @@ export async function runContact(
       contradictions: declared.length ? declared : contradictedClaims,
       unsupported: claims.filter((c: any) => c.verdict === "unsupported").length,
       uncertain: claims.filter((c: any) => c.verdict === "uncertain").length,
+      // Whether verification had any retrieval tool to check with. Without one it
+      // can only compare the sources it was handed, so its uncertainty says
+      // nothing about the lead.
+      couldVerify: (TOOLSETS.verification ?? []).length > 0,
     };
     bus.emit({ agent: "scorer", type: "scoring_started", payload: {} });
     // Re-read the dials rather than using the snapshot taken before the fan-out.

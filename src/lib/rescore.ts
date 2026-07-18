@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "../db";
 import { score } from "./scoring";
 import type { IcpConfig } from "./icp";
+import { TOOLSETS } from "./tools/registry";
 
 const { dossiers, scores, writebacks, runs } = schema;
 
@@ -89,6 +90,7 @@ export function scoreFromDossier(
         contradictions: declared.length ? declared : fromClaims,
         unsupported: claims.filter((c) => c.verdict === "unsupported").length,
         uncertain: claims.filter((c) => c.verdict === "uncertain").length,
+        couldVerify: (TOOLSETS.verification ?? []).length > 0,
       },
       identityUnverified: partials.contact?.identityUnverified,
     },

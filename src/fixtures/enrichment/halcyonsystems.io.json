@@ -1,0 +1,7 @@
+{
+  "company": { "industry": "software", "headcount": 140, "headcountGrowth90d": 0.3, "revenueBand": "$10M-$50M", "hq": "Denver", "ownership": "private", "fundingTotal": "$28M", "latestRound": "Series B", "latestRoundDate": "2026-06-15" },
+  "person": { "title": "VP Platform Engineering", "seniority": "VP", "department": "Engineering", "tenureMonths": 14, "jobChange": false, "buyingRole": "economic_buyer", "emailVerified": true },
+  "tech": { "technologies": ["Next.js", "Node", "AWS", "Kubernetes", "Prometheus", "Grafana"], "competitorPresent": false, "competitorEvidence": "no Datadog or New Relic found on the live site or in job posts; self-hosted Prometheus and Grafana only", "githubOrg": "halcyon-systems", "statusPage": true, "recentIncident": false },
+  "news": [{ "date": "2026-06-15", "type": "funding", "summary": "Series B, $28M raise led by Foundry Capital", "source": "https://techpress.example/halcyon-series-b", "talkingPoint": "Congrats on the Series B, how is reliability holding up as you scale?", "fresh": true }],
+  "engagement": { "topActions": ["demo_request", "pricing_page_view", "email_open"], "recencyDays": 3, "rawSignals": [{ "type": "demo_request", "count": 1 }, { "type": "pricing_page_view", "count": 3 }, { "type": "email_open", "count": 4 }], "attributionUncertain": false }
+}

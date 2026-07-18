@@ -219,22 +219,35 @@ describe("grade cutoffs and recency guards", () => {
 });
 
 describe("unresolved verification", () => {
-  it("flags a cluster of uncertain verdicts", () => {
+  const flagged = (r: ReturnType<typeof score>) => r.reviewReasons.some((x) => x.startsWith("unresolved verification"));
+
+  it("flags a cluster of uncertain verdicts when the verifier could check", () => {
     // Uncertain claims are never stripped (nothing rejected them), so without a
     // reason they leave no trace and the lead is batch-approvable.
     const r = score(
-      { icpFit: fit(0.9), engagement: {}, verification: { contradictions: [], unsupported: 0, uncertain: 3 } },
+      { icpFit: fit(0.9), engagement: {}, verification: { contradictions: [], unsupported: 0, uncertain: 3, couldVerify: true } },
       DEFAULT_ICP,
     );
-    expect(r.reviewReasons.some((x) => x.startsWith("unresolved verification"))).toBe(true);
+    expect(flagged(r)).toBe(true);
   });
 
   it("lets a single uncertain claim pass", () => {
     const r = score(
-      { icpFit: fit(0.9), engagement: {}, verification: { contradictions: [], unsupported: 0, uncertain: 1 } },
+      { icpFit: fit(0.9), engagement: {}, verification: { contradictions: [], unsupported: 0, uncertain: 1, couldVerify: true } },
       DEFAULT_ICP,
     );
-    expect(r.reviewReasons.some((x) => x.startsWith("unresolved verification"))).toBe(false);
+    expect(flagged(r)).toBe(false);
+  });
+
+  it("ignores uncertainty when the verifier had no tools to check with", () => {
+    // Demo and fixture mode give verification no retrieval tools, so it cannot
+    // confirm anything first-hand and reports uncertain by default. Counting that
+    // flagged every contact for review, which is noise, not a finding.
+    const r = score(
+      { icpFit: fit(0.9), engagement: {}, verification: { contradictions: [], unsupported: 0, uncertain: 5, couldVerify: false } },
+      DEFAULT_ICP,
+    );
+    expect(flagged(r)).toBe(false);
   });
 });
 

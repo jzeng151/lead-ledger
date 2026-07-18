@@ -120,8 +120,13 @@ export function score(d: any, icp: IcpConfig) {
   // Verification is the quality gate, so a run where it could not reach a verdict
   // on much of the dossier is not clean, it is unresolved. Uncertain claims are
   // not stripped (they were never rejected), so without this they leave no trace.
+  //
+  // Only when the verifier actually had the means to check. With no retrieval
+  // tools it cannot confirm anything first-hand, so "uncertain" is its resting
+  // state rather than a finding, and counting it flags every contact for review.
   const uncertain: number = d.verification?.uncertain ?? 0;
-  if (uncertain >= 2) reasons.push(`unresolved verification: ${uncertain} claims could not be confirmed either way`);
+  if (uncertain >= 2 && d.verification?.couldVerify)
+    reasons.push(`unresolved verification: ${uncertain} claims could not be confirmed either way`);
 
   // Sort the band: the editor exposes the bounds as two independent fields, and
   // a reversed pair silently matches no priority at all, so every ambiguous lead
