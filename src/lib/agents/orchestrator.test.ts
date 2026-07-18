@@ -154,3 +154,31 @@ describe("fan-out failure", () => {
     expect(db.select().from(schema.runs).where(eq(schema.runs.id, RUN)).get()?.status).toBe("error");
   });
 });
+
+describe("verification claim ids that match no citeable ref", () => {
+  it("flags the run instead of silently keeping an unfiltered rationale", async () => {
+    const RUN = "run-orch-unmatched";
+    const CONTACT = "c-orch-unmatched";
+    db.insert(schema.contacts)
+      .values({ id: CONTACT, name: "Unmatched Claim", companyDomain: "northwind.dev", props: {}, syncedAt: new Date() })
+      .onConflictDoNothing()
+      .run();
+
+    // The verifier rejects "company_funding", but the citeable refs are dossier
+    // field names, so the gate can match nothing and strips nothing.
+    const deps: OrchestratorDeps = {
+      runSub: (async (opts: { agentKey: string }) => {
+        if (opts.agentKey === "verification")
+          return { claims: [{ claimId: "company_funding", verdict: "unsupported" }], contradictions: [] };
+        return (await (fakeRunSub as any)(opts)) as unknown;
+      }) as unknown as OrchestratorDeps["runSub"],
+      synthesize: fakeSynthesize,
+    };
+
+    await runContact(RUN, CONTACT, deps);
+
+    const row = db.select().from(schema.scores).where(eq(schema.scores.runId, RUN)).get()!;
+    expect(row.needsReview).toBe(true);
+    expect((row.reviewReasons as string[]).some((r) => r.startsWith("unmatched verification claim"))).toBe(true);
+  });
+});

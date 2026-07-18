@@ -157,13 +157,25 @@ export async function runContact(
       });
     }
     const rejected = new Set<string>(claims.filter(isRejected).map((c: any) => c.claimId));
-    const gate = checkCitations(synth.citations ?? [], mergeSources(partials), rejected);
+    const sources = mergeSources(partials);
+    const gate = checkCitations(synth.citations ?? [], sources, rejected);
+
+    // The gate can only strip a rejected claim when its claimId is one of the
+    // citeable refs, which the verification prompt requires but the schema cannot
+    // enforce. If a rejected claimId matches no ref, the gate silently keeps every
+    // citation, so surface that as a review reason instead of trusting a rationale
+    // whose rejected claim was never matched.
+    const unmatched = [...rejected].filter((id) => !(id in sources));
     const cleanRationale = sanitizeRationale(synth.rationale);
 
     // The gate strips a citation whose claim verification rejected, or that points
     // at no real dossier field, but the rationale prose still asserts it. Flag that
     // for review instead of quietly showing an unbacked sentence to the rep.
     const reviewReasons = [...s.reviewReasons];
+    if (unmatched.length)
+      reviewReasons.push(
+        `unmatched verification claim: ${unmatched.join(", ")} was rejected but matches no cited field, so the rationale was not filtered`,
+      );
     if (gate.stripped.length)
       reviewReasons.push(
         `unverified claims in rationale: ${gate.stripped.length} citation(s) stripped (${[...new Set(gate.stripped)].join(", ")})`,
