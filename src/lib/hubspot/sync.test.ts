@@ -176,14 +176,31 @@ describe("contacts archived in HubSpot", () => {
     expect(db.select().from(contacts).where(eq(contacts.id, "still-here")).get()?.id).toBe("still-here");
   });
 
-  it("purges nothing when the pull came back empty", async () => {
+  it("clears local rows when a complete pull returns nothing", async () => {
     vi.stubEnv("HUBSPOT_TOKEN", "test-token");
-    db.insert(contacts).values({ id: "keep-1", name: "Still Real", props: {}, syncedAt: new Date() }).run();
-    // A transient blank page must not be read as "the portal is empty".
+    db.insert(contacts).values({ id: "last-one", name: "Only Contact", props: {}, syncedAt: new Date() }).run();
+    // The portal's last contact was archived. Refusing to act on this would
+    // strand the local row forever.
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ results: [] })));
 
-    await syncContacts();
+    const { truncated } = await syncContacts();
 
+    expect(truncated).toBe(false);
+    expect(db.select().from(contacts).where(eq(contacts.id, "last-one")).get()).toBeUndefined();
+  });
+
+  it("purges nothing when the page cap cut the pull short", async () => {
+    vi.stubEnv("HUBSPOT_TOKEN", "test-token");
+    db.insert(contacts).values({ id: "keep-1", name: "Still Real", props: {}, syncedAt: new Date() }).run();
+    // Never runs out of pages: the contacts it never reached are not gone.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ results: [{ id: "paged", properties: {} }], paging: { next: { after: "1" } } })),
+    );
+
+    const { truncated } = await syncContacts();
+
+    expect(truncated).toBe(true);
     expect(db.select().from(contacts).where(eq(contacts.id, "keep-1")).get()?.id).toBe("keep-1");
   });
 });

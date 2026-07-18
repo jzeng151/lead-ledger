@@ -174,10 +174,12 @@ export async function syncContacts(): Promise<{
   // there, they otherwise sit in the queue, get re-scored, and a write-back
   // PATCHes an id that no longer exists.
   //
-  // Only when the pull is known to be whole. A run that stopped at MAX_PAGES, or
-  // one that came back empty (a transient blank page), does not mean those
-  // contacts are gone, and treating it that way would delete the portal.
-  if (complete && results.length) {
+  // Only when the pull is known to be whole: a run that stopped at MAX_PAGES is
+  // not evidence that the contacts it never reached are gone. A complete pull
+  // that returns nothing is different, and is taken at its word: that is what an
+  // emptied portal looks like, and refusing to act on it would strand every
+  // local row forever.
+  if (complete) {
     const live = new Set(results.map((r) => r.id));
     for (const c of db.select({ id: contacts.id }).from(contacts).all()) if (!live.has(c.id)) purgeContact(c.id);
   }
