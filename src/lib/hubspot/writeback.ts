@@ -5,6 +5,13 @@ const { writebacks } = schema;
 export type WritebackPayload = {
   properties: { lead_priority_score: number; lead_grade: string };
   note: string;
+  /**
+   * Not sent to HubSpot. Recorded so a later run can tell whether the review
+   * state moved, not just the numbers: the queue reports a written contact as
+   * synced before it looks at needsReview, so a re-run that newly flags a lead
+   * has to reopen the row or the hold never surfaces.
+   */
+  needsReview?: boolean;
 };
 
 type ScoreInput = {
@@ -12,6 +19,7 @@ type ScoreInput = {
   grade: string;
   rationale: string | null;
   nextStep: string | null;
+  needsReview?: boolean;
 };
 
 /**
@@ -23,6 +31,7 @@ export function buildPayload(score: ScoreInput): WritebackPayload {
   return {
     properties: { lead_priority_score: score.priority, lead_grade: score.grade },
     note,
+    needsReview: score.needsReview ?? false,
   };
 }
 

@@ -4,6 +4,7 @@ import { db, schema } from "../../db";
 import { makeBus, dropBus, getBus, notifyActivity } from "../runStore";
 import { score } from "../scoring";
 import { checkCitations } from "../citation";
+import { buildPayload } from "../hubspot/writeback";
 import { DEFAULT_ICP, type IcpConfig } from "../icp";
 import { runSubagent, type EventSink } from "./runSubagent";
 import { FANOUT, VERIFICATION, ICPFIT, MODELS, EFFORT, SYSTEM_PROMPTS } from "./config";
@@ -165,7 +166,7 @@ export async function runContact(
     const scoringIcp = (db.select().from(icpConfig).where(eq(icpConfig.id, "default")).get()?.config as
       | IcpConfig
       | undefined) ?? icp;
-    const s = score(
+    let s = score(
       { icpFit, engagement: partials.engagement, news: partials.news, verification: verif, identityUnverified: partials.contact?.identityUnverified },
       scoringIcp,
     );
@@ -190,6 +191,21 @@ export async function runContact(
         payload: { message: e instanceof Error ? e.message : String(e), stack: e instanceof Error ? e.stack : undefined },
       });
     }
+    // Synthesis is the longest step, and a settings save during it is invisible
+    // to rescoreAll (this run still has no dossier or score row), so check once
+    // more and recompute the deterministic part if the dials moved. The rationale
+    // keeps the wording it was written with; the number does not stay stale.
+    const afterSynthesis = (db.select().from(icpConfig).where(eq(icpConfig.id, "default")).get()?.config as
+      | IcpConfig
+      | undefined) ?? scoringIcp;
+    if (JSON.stringify(afterSynthesis) !== JSON.stringify(scoringIcp)) {
+      s = score(
+        { icpFit, engagement: partials.engagement, news: partials.news, verification: verif, identityUnverified: partials.contact?.identityUnverified },
+        afterSynthesis,
+      );
+      bus.emit({ agent: "scorer", type: "score_ready", payload: { ...s, rescored: true } });
+    }
+
     const rejected = new Set<string>(claims.filter(isRejected).map((c: any) => c.claimId));
     const sources = mergeSources(partials);
     const gate = checkCitations(synth.citations ?? [], sources, rejected);
@@ -254,7 +270,14 @@ export async function runContact(
     // which the queue cannot render and which stops a restored contact from being
     // auto-queued later.
     if (!db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, contactId)).get()) {
-      bus.emit({ agent: "orchestrator", type: "agent_warning", payload: { message: "contact was removed during this run; score discarded" } });
+      // agent_error, not a warning: this ends the run. The purge also deleted the
+      // run row, so the stream route has nothing to notice, and a non-terminal
+      // event would leave an open EventSource stuck on "running" forever.
+      bus.emit({
+        agent: "orchestrator",
+        type: "agent_error",
+        payload: { message: "contact was removed during this run; score discarded" },
+      });
       notifyActivity();
       return;
     }
@@ -264,13 +287,16 @@ export async function runContact(
       .onConflictDoUpdate({ target: scores.runId, set: scoreRow })
       .run();
 
-    const writeback = {
-      properties: { lead_priority_score: s.priority, lead_grade: s.grade },
-      note: cleanRationale ?? "",
-      // Not sent to HubSpot (applyWriteback builds its own payload); recorded so
-      // a later run can tell whether the review state moved, not just the numbers.
+    // buildPayload, not a hand-rolled copy: applyWriteback stores what it builds,
+    // and a note assembled differently here never compares equal to the note that
+    // was actually written, so an unchanged verdict looked changed every time.
+    const writeback = buildPayload({
+      priority: s.priority,
+      grade: s.grade,
+      rationale: cleanRationale,
+      nextStep: synth.nextStep ?? null,
       needsReview,
-    };
+    });
     // Leave a claimed row alone. If a rep approved just before this re-run
     // finished, resetting the claim to pending here would let that older write
     // complete and mark the contact written against the verdict this run just
@@ -298,7 +324,10 @@ export async function runContact(
       stagedPayload.properties?.lead_priority_score === writeback.properties.lead_priority_score &&
       stagedPayload.properties?.lead_grade === writeback.properties.lead_grade &&
       (stagedPayload.note ?? "") === writeback.note &&
-      !(needsReview && stagedPayload.needsReview === false);
+      // Reopen unless the row positively records that it was already flagged when
+      // it was written. Undefined (a row written before this field existed) is
+      // not that record, so it reopens: the safe direction.
+      !(needsReview && stagedPayload.needsReview !== true);
 
     // And only stage from the contact's newest run. A run that outlived the
     // staleness window can finish after a newer one has already been approved;

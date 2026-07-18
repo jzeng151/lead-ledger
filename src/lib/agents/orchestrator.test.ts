@@ -368,9 +368,11 @@ describe("write-back staging respects prior decisions", () => {
       },
       DEFAULT_ICP,
     );
+    // The note as applyWriteback stores it: rationale plus the next step.
     seed("c-orch-same", "written", {
       properties: { lead_priority_score: s.priority, lead_grade: s.grade },
-      note: "Funded dev-tools shop, but funding claim is unverified.",
+      note: "Funded dev-tools shop, but funding claim is unverified.\n\nNext step: Confirm the round before outreach.",
+      needsReview: true,
     });
 
     await runContact("run-orch-same", "c-orch-same", fakeDeps);
@@ -439,7 +441,7 @@ describe("a re-run that newly flags an already-written contact", () => {
         status: "written",
         payload: {
           properties: { lead_priority_score: s.priority, lead_grade: s.grade },
-          note: "Funded dev-tools shop, but funding claim is unverified.",
+          note: "Funded dev-tools shop, but funding claim is unverified.\n\nNext step: Confirm the round before outreach.",
           needsReview: false,
         },
         approvedAt: new Date(),
@@ -471,5 +473,51 @@ describe("a run for a contact that no longer exists", () => {
     // Fanning out would spend model quota on a lead that cannot be scored.
     expect(calls).toBe(0);
     expect(db.select().from(schema.runs).where(eq(schema.runs.id, "run-orch-ghost")).get()?.status).toBe("error");
+  });
+});
+
+describe("a settings save during synthesis", () => {
+  it("scores against the dials in force when the run lands", async () => {
+    const CONTACT = "c-orch-latesave";
+    db.insert(schema.contacts)
+      .values({ id: CONTACT, name: "Late Save", companyDomain: "northwind.dev", props: {}, syncedAt: new Date() })
+      .onConflictDoNothing()
+      .run();
+
+    const strict = { ...DEFAULT_ICP, weights: { firmographic: 0.1, role: 0.1, technographic: 0.1 } };
+    const deps: OrchestratorDeps = {
+      runSub: fakeRunSub,
+      // The rep saves settings while synthesis is running. rescoreAll cannot see
+      // this run: it has no dossier or score row yet.
+      synthesize: async (args) => {
+        db.insert(schema.icpConfig)
+          .values({ id: "default", config: strict })
+          .onConflictDoUpdate({ target: schema.icpConfig.id, set: { config: strict } })
+          .run();
+        return fakeSynthesize(args);
+      },
+    };
+
+    try {
+      await runContact("run-orch-latesave", CONTACT, deps);
+
+      const expected = score(
+        {
+          icpFit: { firmographic: 0.8, role: 0.3, technographic: 0.3, disqualified: false, conflicts: ["stale funding", "competitor present"] },
+          engagement: { topActions: [], recencyDays: 10 },
+          news: { events: [{ type: "funding", fresh: true }] },
+          verification: { contradictions: ["role mismatch"], unsupported: 1 },
+          identityUnverified: true,
+        },
+        strict,
+      );
+      expect(db.select().from(schema.scores).where(eq(schema.scores.runId, "run-orch-latesave")).get()?.fit).toBe(expected.fit);
+    } finally {
+      // Leave the shared config as the rest of the suite expects it.
+      db.insert(schema.icpConfig)
+        .values({ id: "default", config: DEFAULT_ICP })
+        .onConflictDoUpdate({ target: schema.icpConfig.id, set: { config: DEFAULT_ICP } })
+        .run();
+    }
   });
 });
