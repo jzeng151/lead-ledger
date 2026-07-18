@@ -24,9 +24,17 @@ export async function GET(req: Request) {
       onActivity(handler);
       send(); // initial snapshot
 
+      // A crashed run emits no lifecycle notification when its row merely ages
+      // past the stale cutoff, so an open dashboard would keep the last nonzero
+      // count and leave Sync disabled until a reload. Re-send periodically so the
+      // count drops on its own.
+      const heartbeat = setInterval(send, 30_000);
+      (heartbeat as unknown as { unref?: () => void }).unref?.();
+
       const close = () => {
         if (closed) return;
         closed = true;
+        clearInterval(heartbeat);
         offActivity(handler);
         try {
           controller.close();
