@@ -5,6 +5,7 @@ import { db, schema } from "@/db";
 import { syncContacts } from "@/lib/hubspot/sync";
 import { runContact } from "@/lib/agents/orchestrator";
 import { activeRunForContact, activeRuns } from "@/lib/runs";
+import { rejectCrossSite } from "@/lib/sameOrigin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,12 @@ async function waitForIdle(contactId: string, timeoutMs = 10 * 60 * 1000): Promi
   return !activeRunForContact(contactId);
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  // Sync pulls from the CRM, can purge local rows, and queues scoring runs that
+  // spend provider quota, so it gets the same guard as the write-back route.
+  const crossSite = rejectCrossSite(req);
+  if (crossSite) return crossSite;
+
   // Surface a HubSpot failure (expired token, rate limit) as a JSON error the
   // dashboard can show, instead of an opaque 500 the client reads as success.
   let synced: number;

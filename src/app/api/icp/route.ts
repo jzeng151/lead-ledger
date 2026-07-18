@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { DEFAULT_ICP, type IcpConfig } from "@/lib/icp";
 import { rescoreAll } from "@/lib/rescore";
+import { rejectCrossSite } from "@/lib/sameOrigin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,6 +45,10 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  // Saving settings re-scores every stored run, so it is state-changing too.
+  const crossSite = rejectCrossSite(req);
+  if (crossSite) return crossSite;
+
   // Lenient: ignore a malformed body or a non-object payload rather than 500.
   const body = await req.json().catch(() => ({}));
   const patch = body && typeof body === "object" ? (body as Partial<IcpConfig>) : {};

@@ -2,6 +2,7 @@ import { after } from "next/server";
 
 import { runContact } from "@/lib/agents/orchestrator";
 import { activeRunForContact } from "@/lib/runs";
+import { rejectCrossSite } from "@/lib/sameOrigin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +10,12 @@ export const dynamic = "force-dynamic";
 // Next 16 requires all dynamic segments sharing a path position to use one slug
 // name, so this segment is `[id]` (here it carries the contactId; the sibling
 // stream route reads the same slug as a runId).
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  // Starting a run spends Anthropic quota, so it needs the same guard as the
+  // other state-changing routes.
+  const crossSite = rejectCrossSite(req);
+  if (crossSite) return crossSite;
+
   const { id: contactId } = await params;
 
   // Re-run is re-enabled as soon as this POST returns, so a second click while the
