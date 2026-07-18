@@ -22,9 +22,9 @@ export function purgeContact(id: string) {
 
 /**
  * Guard against duplicate people: remove any contact that shares this email but
- * has a different id (e.g. a demo fixture like `c-northwind` superseded by the
- * real HubSpot contact with the same email), so a sync never leaves the same
- * person in the queue twice. Contacts without an email are left untouched.
+ * has a different id (e.g. a stale row left over from an earlier sync) before the
+ * real HubSpot contact is upserted, so a sync never leaves the same person in the
+ * queue twice. Contacts without an email are left untouched.
  */
 export function dedupeByEmail(email: string, keepId: string) {
   const stale = db

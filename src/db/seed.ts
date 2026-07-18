@@ -1,8 +1,7 @@
 import { db, schema } from "./index";
-import { SEED_CONTACTS } from "../fixtures/contacts";
 import { DEFAULT_ICP } from "../lib/icp";
 
-const now = new Date();
-db.insert(schema.contacts).values(SEED_CONTACTS.map(c => ({ ...c, props: {}, syncedAt: now }))).run();
+// Contacts are synced from HubSpot (dashboard "Sync"), not seeded locally. This
+// only ensures the default ICP config exists.
 db.insert(schema.icpConfig).values({ id: "default", config: DEFAULT_ICP }).onConflictDoNothing().run();
-console.log(`Seeded ${SEED_CONTACTS.length} contacts.`);
+console.log("Seeded default ICP config. Contacts are synced from HubSpot.");

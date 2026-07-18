@@ -2,7 +2,7 @@
 
 Agentic HubSpot lead prioritization for a dev-tools sales rep. Lead Ledger syncs contacts, then runs a lead orchestrator that fans out to seven specialized subagents (company, contact, tech, news, engagement, verification, ICP-fit), blends their findings into a two-axis score (fit and engagement) and a single 0 to 100 priority with a cited rationale and a recommended next step, and streams the whole run through a live CLI-harness view. Nothing is written back to HubSpot until a human approves it.
 
-The demo persona is "Tracepoint," a fictional observability API sold to funded software startups. The sample contacts are fictional companies, so their enrichment always comes from deterministic fixtures and the demo never breaks.
+The demo persona is "Tracepoint," a fictional observability API sold to funded software startups. Contacts are synced from HubSpot; their enrichment comes from deterministic fixtures keyed by company domain, so the scoring for the sample companies stays stable and the demo does not depend on live enrichment providers.
 
 ## Stack
 
@@ -12,17 +12,17 @@ Next.js 16 (App Router) + React 19 + TypeScript, Tailwind v4, SQLite via Drizzle
 
 ```
 npm install
-cp .env.example .env.local   # add ANTHROPIC_API_KEY to see the real agentic flow; other keys optional (fixtures otherwise)
+cp .env.example .env.local   # ANTHROPIC_API_KEY for the agentic flow; HUBSPOT_TOKEN to sync/write contacts
 npm run db:push
-npm run reseed
+npm run reseed               # initializes a clean local DB (default ICP); contacts come from Sync
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000, then click "Sync contacts" to pull your HubSpot contacts into the queue.
 
 ## Demo walkthrough
 
-1. Sync/seed the queue: `npm run reseed` loads the 12 sample contacts. The dashboard "Sync" button pulls from HubSpot when a token is set.
+1. Sync the queue: with `HUBSPOT_TOKEN` set, click "Sync contacts" to pull contacts from HubSpot (deduped by email). `npm run reseed` clears local state back to an empty queue.
 2. Dashboard: contacts ranked by priority, filterable by status (new, scored, needs review, approved, synced).
 3. Open a contact.
 4. Click "Run" to start the agentic pipeline.
