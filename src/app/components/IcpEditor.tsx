@@ -111,6 +111,7 @@ export function IcpEditor() {
   const [config, setConfig] = useState<IcpConfig | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/icp")
@@ -122,14 +123,25 @@ export function IcpEditor() {
     if (!config) return;
     setSaving(true);
     setSaved(false);
+    setError(null);
     try {
       const res = await fetch("/api/icp", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(config),
       });
-      setConfig((await res.json()) as IcpConfig);
+      const body = await res.json();
+      // A rejected save returns {error}. Storing that as the config made the next
+      // render read c.weights.firmographic off an error object and crash the
+      // page; keep the previous config on screen and show what went wrong.
+      if (!res.ok) {
+        setError(typeof body?.error === "string" ? body.error : `Save failed (${res.status})`);
+        return;
+      }
+      setConfig(body as IcpConfig);
       setSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -172,6 +184,7 @@ export function IcpEditor() {
             Saved
           </span>
         ) : null}
+        {error ? <span className="text-sm text-[var(--tone-rose-fg)]">{error}</span> : null}
       </div>
     </div>
   );
