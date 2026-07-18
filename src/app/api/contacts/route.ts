@@ -21,6 +21,7 @@ export async function GET() {
       priority: scores.priority,
       grade: scores.grade,
       needsReview: scores.needsReview,
+      runId: scores.runId,
       startedAt: runs.startedAt,
     })
     .from(scores)
@@ -32,10 +33,16 @@ export async function GET() {
     { fit: number; priority: number; grade: string; needsReview: boolean } | undefined
   > = {};
   const latestStartedAt: Record<string, number> = {};
+  const latestRunId: Record<string, string> = {};
   for (const s of scoreRows) {
     const t = s.startedAt ? s.startedAt.getTime() : 0;
-    if (latestStartedAt[s.contactId] === undefined || t >= latestStartedAt[s.contactId]) {
+    // Same tie-break as the detail and write-back routes: startedAt is stored at
+    // second resolution, so a fast re-run can tie with the score it replaces and
+    // the queue would show whichever row the join happened to visit last.
+    const prev = latestStartedAt[s.contactId];
+    if (prev === undefined || t > prev || (t === prev && s.runId > latestRunId[s.contactId])) {
       latestStartedAt[s.contactId] = t;
+      latestRunId[s.contactId] = s.runId;
       latestScoreByContact[s.contactId] = {
         fit: s.fit,
         priority: s.priority,
