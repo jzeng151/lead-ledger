@@ -4,7 +4,7 @@ import { DEFAULT_ICP } from "../lib/icp";
 const { contacts, runs, runEvents, dossiers, scores, writebacks, icpConfig } = schema;
 
 // Reset local state to a clean slate. Contacts now come from HubSpot via the
-// dashboard "Sync", so reseed clears the runtime tables and every synced contact;
+// dashboard "Sync", so reset DELETES the runtime tables and every synced contact;
 // a fresh Sync repopulates the queue. The default ICP config is (re)ensured.
 db.delete(runEvents).run();
 db.delete(dossiers).run();

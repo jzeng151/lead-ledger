@@ -14,7 +14,7 @@ Next.js 16 (App Router) + React 19 + TypeScript, Tailwind v4, SQLite via Drizzle
 npm install
 cp .env.example .env.local   # ANTHROPIC_API_KEY for the agentic flow; HUBSPOT_TOKEN to sync/write contacts
 npm run db:push
-npm run reseed               # initializes a clean local DB (default ICP); contacts come from Sync
+npm run reset                # clears local state to an empty DB (default ICP); contacts come from Sync
 npm run dev
 ```
 
@@ -22,7 +22,7 @@ Open http://localhost:3000, then click "Sync contacts" to pull your HubSpot cont
 
 ## Demo walkthrough
 
-1. Sync the queue: with `HUBSPOT_TOKEN` set, click "Sync contacts" to pull contacts from HubSpot (deduped by email). `npm run reseed` clears local state back to an empty queue. For a stable showcase, set `LEAD_LEDGER_DEMO=1` so scoring reads contact + engagement from the domain fixtures (keeping the demo spread) while sync and write-back still use the live token.
+1. Sync the queue: with `HUBSPOT_TOKEN` set, click "Sync contacts" to pull contacts from HubSpot (deduped by email). `npm run reset` clears local state back to an empty queue (it deletes synced contacts). For a stable showcase, set `LEAD_LEDGER_DEMO=1` so scoring reads contact + engagement from the domain fixtures (keeping the demo spread) while sync and write-back still use the live token.
 2. Dashboard: contacts ranked by priority, filterable by status (new, scored, needs review, approved, synced).
 3. Open a contact.
 4. Click "Run" to start the agentic pipeline.
