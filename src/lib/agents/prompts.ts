@@ -31,7 +31,7 @@ DO NOT research the person, the tech stack, or news; other agents own those. DO 
 
 TOOLS:
 - hubspot_get_contact({ id: contact.id }) - the CRM record as stored.
-- pdl_person_enrich({ domain }) - person enrichment for that company domain.
+- pdl_person_enrich({ domain, name: contact.name, email: contact.email }) - person enrichment. Always pass the name and the email you have: the provider cannot resolve a person from the domain alone, and the call is skipped without one of them.
 - apollo_person_match({ name: contact.name, domain }) - a second source.
 - hunter_verify_email({ email: contact.email }) - deliverability and verification. Skip it when there is no email.
 
